@@ -13,24 +13,25 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 
-"HOLLOW ANGLE"
 # read in hollow axis excel file
 path = "C:\\Users\\12092\\Documents\\QGIS_Hollow_Data\\HadsallAvg9AxisStats.xlsx"
 
+"HOLLOW ANGLE"
 axis_df = pd.read_excel(path, names=['LINEID', 'ID', 'DIST', 'DIST_SURF', 'X', 'Y', 'ANGLE'])
-print(axis_df)
+#print(axis_df)
 
 # get the mean of every polyline for the hollow axis
 key = axis_df['LINEID']
 axis_mean = axis_df.groupby(key)['ANGLE'].mean()
 axis_median = axis_df.groupby(key)['ANGLE'].median()
 
-"SIDE SLOPE ANGLE"
+
 # read in side slope  excel file
 path = "C:\\Users\\12092\\Documents\\QGIS_Hollow_Data\\HadsallAvg9SideslopeStats.xlsx"
 
+"SIDE SLOPE ANGLE"
 side_df = pd.read_excel(path, names=['LINEID', 'ID', 'DIST', 'DIST_SURF', 'X', 'Y', 'ANGLE'])
-print(side_df)
+#print(side_df)
 
 # get the mean of every polyline for the side slopes
 key = side_df['LINEID']
@@ -50,6 +51,7 @@ comp_df.columns = ['hollow_axis_mean', 'hollow_axis_median', 'sideslope_mean', '
 ## y is tan of hollow slope, x is tan of side slope
 
 plt.figure()
+plt.title('Avg9')
 plt.scatter((np.tan(np.deg2rad(comp_df.sideslope_mean))), (np.tan(np.deg2rad(comp_df.hollow_axis_mean))))
 plt.ylabel('tan(hollow angle)')
 plt.xlabel('tan(side slope angle)')
@@ -59,6 +61,7 @@ plt.xlabel('tan(side slope angle)')
 ratio = (np.tan(np.deg2rad(comp_df.hollow_axis_mean)))/(np.tan(np.deg2rad(comp_df.sideslope_mean)))
 
 plt.figure()
-plt.scatter(comp_df.sideslope_mean, ratio)
-plt.xlabel('Side slope angle (deg)')
-plt.ylabel('tan(hollow ang)/tan(side slope ang)')
+plt.title('Avg9')
+plt.scatter(comp_df.hollow_axis_mean, ratio)
+plt.xlabel('$θ_S$')
+plt.ylabel('tan($θ_H$)/tan($θ_S$)')
