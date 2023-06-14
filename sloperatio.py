@@ -56,7 +56,7 @@ plt.scatter((np.tan(np.deg2rad(comp_df.sideslope_mean))), (np.tan(np.deg2rad(com
 plt.ylabel('tan(hollow angle)')
 plt.xlabel('tan(side slope angle)')
 
-comp_df.to_excel('C:\\Users\\12092\\Documents\\Hallow_Evacuation_Model\\comp_df.xlsx', index=False)
+comp_df.to_excel('C:\\Users\\12092\\Documents\\Hallow_Evacuation_Data\\comp_df.xlsx', index=False)
 ##############################################################################
 
 ratio = (np.tan(np.deg2rad(comp_df.hollow_axis_mean)))/(np.tan(np.deg2rad(comp_df.sideslope_mean)))
