@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 # read in hollow axis excel file
-path = "C:\\Users\\12092\\Documents\\QGIS_Hollow_Data\\HadsallAvg9AxisStats.xlsx"
+path = "C:\\Users\\12092\\Documents\\QGIS_Hollow_Data\\HadsallAvg9AxisStats_0614.xlsx"
 
 "HOLLOW ANGLE"
 axis_df = pd.read_excel(path, names=['LINEID', 'ID', 'DIST', 'DIST_SURF', 'X', 'Y', 'ANGLE'])
@@ -27,7 +27,7 @@ axis_median = axis_df.groupby(key)['ANGLE'].median()
 
 
 # read in side slope  excel file
-path = "C:\\Users\\12092\\Documents\\QGIS_Hollow_Data\\HadsallAvg9SideslopeStats.xlsx"
+path = "C:\\Users\\12092\\Documents\\QGIS_Hollow_Data\\HadsallAvg9SideslopeStats_0614.xlsx"
 
 "SIDE SLOPE ANGLE"
 side_df = pd.read_excel(path, names=['LINEID', 'ID', 'DIST', 'DIST_SURF', 'X', 'Y', 'ANGLE'])
@@ -56,6 +56,7 @@ plt.scatter((np.tan(np.deg2rad(comp_df.sideslope_mean))), (np.tan(np.deg2rad(com
 plt.ylabel('tan(hollow angle)')
 plt.xlabel('tan(side slope angle)')
 
+comp_df.to_excel('C:\\Users\\12092\\Documents\\Hallow_Evacuation_Model\\comp_df.xlsx', index=False)
 ##############################################################################
 
 ratio = (np.tan(np.deg2rad(comp_df.hollow_axis_mean)))/(np.tan(np.deg2rad(comp_df.sideslope_mean)))
