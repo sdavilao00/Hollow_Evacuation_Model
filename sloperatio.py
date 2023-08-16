@@ -51,18 +51,18 @@ comp_df.columns = ['hollow_axis_mean', 'hollow_axis_median', 'sideslope_mean', '
 ## y is tan of hollow slope, x is tan of side slope
 
 plt.figure()
-plt.title('Avg9')
+plt.title('Slope Ratio')
 plt.scatter((np.tan(np.deg2rad(comp_df.sideslope_mean))), (np.tan(np.deg2rad(comp_df.hollow_axis_mean))))
 plt.ylabel('tan(hollow angle)')
 plt.xlabel('tan(side slope angle)')
 
-comp_df.to_excel('C:\\Users\\12092\\Documents\\Hallow_Evacuation_Data\\comp_df.xlsx', index=False)
+#comp_df.to_excel('C:\\Users\\12092\\Documents\\Hallow_Evacuation_Data\\comp_df.xlsx', index=False)
 ##############################################################################
 
 ratio = (np.tan(np.deg2rad(comp_df.hollow_axis_mean)))/(np.tan(np.deg2rad(comp_df.sideslope_mean)))
 
 plt.figure()
-plt.title('Avg9')
+plt.title('Slope Ratio')
 plt.scatter(comp_df.hollow_axis_mean, ratio)
 plt.xlabel('$θ_S$')
 plt.ylabel('tan($θ_H$)/tan($θ_S$)')
