@@ -20,6 +20,7 @@ slope_ang = np.arange(27,51, 0.1)
 slope_rad = np.deg2rad(slope_ang)
 hollow_rad = (np.arctan((0.8*(np.tan(np.deg2rad(slope_ang))))))
 hollow_ang = np.rad2deg(np.arctan((0.8*(np.tan(np.deg2rad(slope_ang))))))
+t = np.arange(0,100000, 100)
 
 def K(a):
     b = a / (1 - ((np.tan(slope_rad)/Sc)**2))

@@ -89,7 +89,7 @@ plt.ylabel('Sediment Influx')
 # theta_degree = 32  
 # theta = np.tan(np.deg2rad(theta_degree))
 # hol = 0.8 * theta
-# time = np.arange(0,100000, 100)
+#  = np.arange(0,100000, 100)
 # #K_val = volume.Kh[(volume.slope_deg)]
 # length = 10 #m
 
@@ -161,28 +161,25 @@ plt.ylabel('Sediment Influx')
 
 
 
-# C = 6000 #Pa
-# pw = 1000 # kg/m3
-# ps = 2000 # kg/m3c
-# phi = np.deg2rad(42)  #converts phi to radians 
-# g = 9.8  # m/s2
+C = 6000 #Pa
+pw = 1000 # kg/m3
+ps = 2000 # kg/m3c
+phi = np.deg2rad(42)  #converts phi to radians 
+g = 9.8  # m/s2
 
-# hc_high = C / ((pw*g**(np.tan(phi))*(np.cos(theta)))
-#                       +(ps*g*(np.cos(theta))*(np.tan(theta) - np.tan(phi))))
+hc_high = C / ((pw*g**(np.tan(phi))*(np.cos(theta)))
+                      +(ps*g*(np.cos(theta))*(np.tan(theta) - np.tan(phi))))
 
-# width_high = 2 * (hc_low/(np.tan(theta)))
 
-# volume_high = 0.5 * hc_low * width_low * length
-
-# plt.figure()
-# plt.title('Hollow Depth for Slopes at 43 deg')
-# plt.plot(time, h)
-# plt.hlines(y= [hc_high], xmin = 0, xmax = 1000, linestyle = 'dashed', color = 'r', lw= 2, label = "Critical Depth for Steep Hollows")
-# plt.legend()
+plt.figure()
+plt.title('Hollow Depth for Slopes at 43 deg')
+plt.plot(, h)
+plt.hlines(y= [hc_high], xmin = 0, xmax = 1000, linestyle = 'dashed', color = 'r', lw= 2, label = "Critical Depth for Steep Hollows")
+plt.legend()
 
 # plt.figure()
 # plt.title('Hollow volume for Slopes at 43 deg')
-# plt.plot(time, vol)
+# plt.plot(, vol)
 # plt.hlines(y= [volume_low], xmin = 0, xmax = 1000, linestyle = 'dashed', color = 'r', lw= 2, label = "Critical volume for Steep Hollows")
 # plt.legend()
 
