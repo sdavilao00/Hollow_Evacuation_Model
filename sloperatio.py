@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 # read in hollow axis excel file
-path = "C:\\Users\\12092\\Documents\\QGIS_Hollow_Data\\HadsallAvg9AxisStats_0614.xlsx"
+path = "C:\\Users\\12092\\Documents\\Hollow_Data\\hollow_slopes\\HadsallAvg9AxisStats_0614.xlsx"
 
 "HOLLOW ANGLE"
 axis_df = pd.read_excel(path, names=['LINEID', 'ID', 'DIST', 'DIST_SURF', 'X', 'Y', 'ANGLE'])
@@ -47,22 +47,37 @@ comp_df = pd.DataFrame(zip(axis_mean, axis_median, side_mean, side_median))
 ## rename columns
 comp_df.columns = ['hollow_axis_mean', 'hollow_axis_median', 'sideslope_mean', 'sideslope_median']
 
+## Fit a regression line
+coefficients = np.polyfit(np.tan(np.deg2rad(comp_df.sideslope_mean)), np.tan(np.deg2rad(comp_df.hollow_axis_mean)), 1)
+poly = np.poly1d(coefficients)
+
+# Generate x values for the regression line
+x_regression = np.linspace(min(np.tan(np.deg2rad(comp_df.sideslope_mean))), max(np.tan(np.deg2rad(comp_df.sideslope_mean))), 100)
+
+
+# Plot the regression line
+plt.plot(x_regression, poly(x_regression), label='Regression Line', color='red')
+
 ## Plot this up
 ## y is tan of hollow slope, x is tan of side slope
 
 plt.figure()
 plt.title('Slope Ratio')
 plt.scatter((np.tan(np.deg2rad(comp_df.sideslope_mean))), (np.tan(np.deg2rad(comp_df.hollow_axis_mean))))
-plt.ylabel('tan(hollow angle)')
-plt.xlabel('tan(side slope angle)')
+plt.ylabel('tan($θ_H$)')
+plt.xlabel('tan($θ_S$)')
+# Plot the regression line
+plt.plot(x_regression, poly(x_regression), label='Regression Line', color='red')
+equation = f"y = {round(coefficients[0], 2)}x + {round(coefficients[1], 2)}"
+plt.text(0.3, 0.7, equation, color='red', fontsize=12)
 
 #comp_df.to_excel('C:\\Users\\12092\\Documents\\Hallow_Evacuation_Data\\comp_df.xlsx', index=False)
 ##############################################################################
 
-ratio = (np.tan(np.deg2rad(comp_df.hollow_axis_mean)))/(np.tan(np.deg2rad(comp_df.sideslope_mean)))
+# ratio = (np.tan(np.deg2rad(comp_df.hollow_axis_mean)))/(np.tan(np.deg2rad(comp_df.sideslope_mean)))
 
-plt.figure()
-plt.title('Slope Ratio')
-plt.scatter(comp_df.hollow_axis_mean, ratio)
-plt.xlabel('$θ_S$')
-plt.ylabel('tan($θ_H$)/tan($θ_S$)')
+# plt.figure()
+# plt.title('Slope Ratio')
+# plt.scatter(comp_df.hollow_axis_mean, ratio)
+# plt.xlabel('$θ_S$')
+# plt.ylabel('tan($θ_H$)/tan($θ_S$)')
