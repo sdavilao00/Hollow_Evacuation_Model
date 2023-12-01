@@ -27,7 +27,7 @@ axis_median = axis_df.groupby(key)['ANGLE'].median()
 
 
 # read in side slope  excel file
-path = "C:\\Users\\12092\\Documents\\QGIS_Hollow_Data\\HadsallAvg9SideslopeStats_0614.xlsx"
+path = "C:\\Users\\12092\\Documents\\Hollow_Data\\hollow_slopes\\HadsallAvg9SideslopeStats_0614.xlsx"
 
 "SIDE SLOPE ANGLE"
 side_df = pd.read_excel(path, names=['LINEID', 'ID', 'DIST', 'DIST_SURF', 'X', 'Y', 'ANGLE'])

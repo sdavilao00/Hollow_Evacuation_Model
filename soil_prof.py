@@ -39,8 +39,10 @@ plt.xlabel('SOC Stock ($kg/m^3$)')
 
 ## Plot SOC totals with area under curve shaded
 plt.figure(figsize=(5,7.5))
-# plt.fill_between(HCH2_df.soc_cumsum*1000, HCH2_df.mid_m, where=(HCH2_df.soc_cumsum * 1000 <= 500), color='skyblue', alpha=0.4)
+plt.fill_between(HCH2_df.soc_cumsum*1000, HCH2_df.mid_m, 375, color='skyblue', alpha=0.4)
 plt.plot(HCH2_df.soc_cumsum*1000, HCH2_df.mid_m)
 plt.gca().xaxis.set_ticks_position('top')
 plt.gca().xaxis.set_label_position('top')
 plt.gca().invert_yaxis()
+plt.ylabel('Depth (m)')
+plt.xlabel('Overall SOC Stock ($kg/m^3$)')

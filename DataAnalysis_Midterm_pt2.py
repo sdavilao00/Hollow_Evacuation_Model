@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 
+
 pw = 1000  # kg/m3
 ps = 1800  # kg/m3
 g = 9.81  # m/s2
@@ -128,24 +129,33 @@ for result5 in results5:
 mean_result6 = np.mean(results6)
 std_deviation_result6 = np.std(results6)
 
+logx = np.log10(results2)
+bins = 10**np.linspace(min(logx), max(logx), 101)
+
+logx1 = np.log10(results4)
+bins1 = 10**np.linspace(min(logx1), max(logx1), 101)
+
+logx2 = np.log10(results6)
+bins2 = 10**np.linspace(min(logx2), max(logx2), 101)
 
 # Plot the histogram
 plt.figure()
-plt.hist(results2, bins=500, range = (0,50000), density=True, alpha=0.8, color='gray', edgecolor='k', label = 'C = 2500')
-plt.hist(results4, bins=100, range = (0,50000), density=True, alpha=0.8, color='orange', edgecolor='k', label = 'C = 6800')
-plt.hist(results6, bins=100, range = (0,50000), density=True, alpha=0.8, color='blue', edgecolor='k', label = 'C = 11000')
+plt.hist(results2, bins=bins, range = (0,100000), density=True, alpha=1, color='gray', edgecolor='k', label = 'C = 2500')
+plt.hist(results4, bins=bins1, range = (0,100000), density=True, alpha=1, color='orange', edgecolor='k', label = 'C = 6800')
+plt.hist(results6, bins=bins2, range = (0,100000), density=True, alpha=1, color='blue', edgecolor='k', label = 'C = 11000')
 plt.legend()
 plt.xlabel('Recurrence Interval (yrs)')
 plt.ylabel('Probability Density')
 plt.title('Monte Carlo Probability Distribution - slope = 40')
 plt.xscale('log')
+# plt.yscale('log')
 
-# # Annotate the plot with mean and standard deviation
-# plt.annotate(f'Mean: {mean_result2:.2f}', xy=(0.3, 0.8), xycoords='axes fraction', fontsize=10, color='red')
+# Annotate the plot with mean and standard deviation
+plt.annotate(f'Mean: {mean_result2:.2f}', xy=(0.2, 0.8), xycoords='axes fraction', fontsize=10, color='red')
 # plt.annotate(f'Std Dev: {std_deviation_result2:.2f}', xy=(0.3, 0.75), xycoords='axes fraction', fontsize=10, color='red')
-# plt.annotate(f'Mean: {mean_result4:.2f}', xy=(0.5, 0.3), xycoords='axes fraction', fontsize=10, color='red')
+plt.annotate(f'Mean: {mean_result4:.2f}', xy=(0.4, 0.2), xycoords='axes fraction', fontsize=10, color='red')
 # plt.annotate(f'Std Dev: {std_deviation_result4:.2f}', xy=(0.5, 0.25), xycoords='axes fraction', fontsize=10, color='red')
-# plt.annotate(f'Mean: {mean_result6:.2f}', xy=(0.7, 0.15), xycoords='axes fraction', fontsize=10, color='red')
+plt.annotate(f'Mean: {mean_result6:.2f}', xy=(0.6, 0.1), xycoords='axes fraction', fontsize=10, color='red')
 # plt.annotate(f'Std Dev: {std_deviation_result6:.2f}', xy=(0.7, 0.1), xycoords='axes fraction', fontsize=10, color='red')
 
 # Show the plot
