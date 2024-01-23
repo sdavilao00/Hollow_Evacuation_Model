@@ -10,7 +10,7 @@ g = 9.81  # m/s2
 Sc = 1.25
 slope = 40
 slope_r = np.deg2rad(slope)
-hollow = np.arctan(0.8 * np.tan(np.deg2rad(slope)))
+hollow = np.arctan(0.89 * np.tan(np.deg2rad(slope)))
 
 ## Cohesion of 2500 ##
 # Define the number of Monte Carlo samples

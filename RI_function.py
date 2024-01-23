@@ -18,8 +18,8 @@ K_avg = 0.004 # m2/yr
 Sc = 1.25
 slope_ang = np.arange(27,51, 0.1)
 slope_rad = np.deg2rad(slope_ang)
-hollow_rad = (np.arctan((0.8*(np.tan(np.deg2rad(slope_ang))))))
-hollow_ang = np.rad2deg(np.arctan((0.8*(np.tan(np.deg2rad(slope_ang))))))
+hollow_rad = (np.arctan((0.89*(np.tan(np.deg2rad(slope_ang))))))
+hollow_ang = np.rad2deg(np.arctan((0.89*(np.tan(np.deg2rad(slope_ang))))))
 t = np.arange(0,100000, 100)
 
 def K(a):
@@ -51,16 +51,16 @@ ri_max = ri(hc_max)
 
 plt.figure()
 plt.grid()
-plt.title("Cohesion Comparison")
+# plt.title("Cohesion Comparison")
 plt.yscale('log')
-plt.plot(hollow_ang, ri_max, label = 'C = 25.6 kPa')
-plt.plot(hollow_ang, ri_high, label = 'C = 11 kPa')
-plt.plot(hollow_ang, ri_norm, label = 'C = 6.8 kPa')
-plt.plot(hollow_ang, ri_med, label = 'C = 4.5 kPa')
-plt.plot(hollow_ang, ri_low, label = 'C = 2.5 kPa')
+plt.plot(hollow_ang, ri_max, label = 'Densely forested')
+plt.plot(hollow_ang, ri_high, label = 'Forested')
+plt.plot(hollow_ang, ri_norm, label = 'Recent Regrowth')
+#plt.plot(hollow_ang, ri_med, label = 'C = 4.5 kPa')
+plt.plot(hollow_ang, ri_low, label = 'Clear cut/Fire')
 plt.legend()
-plt.xlabel('$θ_H$')
-plt.ylabel('Recurrance Interval (yrs)')
+# plt.xlabel('$θ_H$')
+# plt.ylabel('Recurrance Interval (yrs)')
 
 ##############################################################################
 ######################### Linear K ###########################################
@@ -78,12 +78,13 @@ def ri(a):
 ri_norm_lin = ri(hc_norm_lin)
 
 plt.figure()
-plt.grid()
+#plt.grid()
 plt.yscale('log')
-plt.title('Linear and Nonlinear K comparsion')
-plt.plot(hollow_ang, ri_norm, label = 'New linear K')
+#plt.title('Sediment transport coefficient comparsion')
+plt.plot(hollow_ang, ri_norm, label = 'Linear K')
 plt.plot(hollow_ang, ri_norm_lin)
-plt.legend()
-plt.xlabel('$θ_H$')
-plt.ylabel('Recurrance Interval (yrs)')
+#plt.legend()
+#plt.xlabel('$θ_H$')
+#plt.ylabel('Recurrance Interval (yrs)')
+
 

@@ -16,7 +16,7 @@ path = "C:\\Users\\12092\\Documents\\Hollow_Data\\SOC_data\\SOC_HCH.xlsx"
 ## make dataframe
 SOC_df = pd.read_excel(path, names=['depth_m', 'upper_m', 'mid_m', 'sample', 'before_sieve_g', 
                                     'lt_2mm_fraction_g', 'gt_2mm_fraction_g', 'N', 'C', 'Fc', 'course_corr','soc_density_kgcm3'], 
-                       skiprows=12)
+                       skiprows=12, index_col=(False))
 
 ## Specify the prefix
 target_prefix = 'HCH2'
@@ -34,7 +34,7 @@ plt.gca().xaxis.set_ticks_position('top')
 plt.gca().xaxis.set_label_position('top')
 plt.gca().invert_yaxis()
 plt.grid(True, linestyle='--', color='gray', alpha=0.5, zorder=1)
-plt.ylabel('Depth (m)')
+plt.ylabel('Depth (cm)')
 plt.xlabel('SOC Stock ($kg/m^3$)')
 
 ## Plot SOC totals with area under curve shaded
@@ -44,5 +44,5 @@ plt.plot(HCH2_df.soc_cumsum*1000, HCH2_df.mid_m)
 plt.gca().xaxis.set_ticks_position('top')
 plt.gca().xaxis.set_label_position('top')
 plt.gca().invert_yaxis()
-plt.ylabel('Depth (m)')
+plt.ylabel('Depth (cm)')
 plt.xlabel('Overall SOC Stock ($kg/m^3$)')
