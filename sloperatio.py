@@ -63,21 +63,13 @@ plt.plot(x_regression, poly(x_regression), label='Regression Line', color='red')
 
 plt.figure()
 plt.title('Slope Ratio')
-plt.scatter((np.tan(np.deg2rad(comp_df.sideslope_mean))), (np.tan(np.deg2rad(comp_df.hollow_axis_mean))))
+plt.scatter((np.tan(np.deg2rad(comp_df.sideslope_mean))), (np.tan(np.deg2rad(comp_df.hollow_axis_mean))), color = 'black', s = 10, marker= 'x', )
 plt.ylabel('tan($θ_H$)')
 plt.xlabel('tan($θ_S$)')
 # Plot the regression line
-plt.plot(x_regression, poly(x_regression), label='Regression Line', color='red')
+plt.plot(x_regression, poly(x_regression), label='Regression Line', color='red', linestyle = '--')
 equation = f"y = {round(coefficients[0], 2)}x + {round(coefficients[1], 2)}"
-plt.text(0.3, 0.7, equation, color='red', fontsize=12)
+#plt.text(0.3, 0.7, equation, color='red', fontsize=12)
 
 #comp_df.to_excel('C:\\Users\\12092\\Documents\\Hallow_Evacuation_Data\\comp_df.xlsx', index=False)
 ##############################################################################
-
-# ratio = (np.tan(np.deg2rad(comp_df.hollow_axis_mean)))/(np.tan(np.deg2rad(comp_df.sideslope_mean)))
-
-# plt.figure()
-# plt.title('Slope Ratio')
-# plt.scatter(comp_df.hollow_axis_mean, ratio)
-# plt.xlabel('$θ_S$')
-# plt.ylabel('tan($θ_H$)/tan($θ_S$)')
