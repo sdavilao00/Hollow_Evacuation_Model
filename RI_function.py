@@ -67,7 +67,7 @@ plt.ylabel('Recurrance Interval (yrs)')
 ##############################################################################
 
 
-hc_norm_lin = crit_depth(6800)
+hc_norm_avg = crit_depth(6800)
 
 
 def ri(a):
@@ -75,14 +75,14 @@ def ri(a):
     A = (a**2)/ ((B**2) * (2*(K_avg)))
     return A
 
-ri_norm_lin = ri(hc_norm_lin)
+ri_norm_avg = ri(hc_norm_avg)
 
 plt.figure()
 plt.grid()
 plt.yscale('log')
-plt.title('Linear and Nonlinear K comparsion')
-plt.plot(hollow_ang, ri_norm, label = 'New linear K')
-plt.plot(hollow_ang, ri_norm_lin)
+plt.title('Sediment transport value (K) comparsion')
+plt.plot(hollow_ang, ri_norm, label = '$K_{\mathrm{lin}}$')
+plt.plot(hollow_ang, ri_norm_avg, label = '$K_{\mathrm{avg}}$')
 plt.legend()
 plt.xlabel('$θ_H$')
 plt.ylabel('Recurrance Interval (yrs)')
