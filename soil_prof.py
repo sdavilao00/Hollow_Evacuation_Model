@@ -16,7 +16,7 @@ path = "C:\\Users\\12092\\Documents\\Hollow_Data\\SOC_data\\SOC_HCH.xlsx"
 ## make dataframe
 SOC_df = pd.read_excel(path, names=['depth_m', 'upper_m', 'mid_m', 'sample', 'before_sieve_g', 
                                     'lt_2mm_fraction_g', 'gt_2mm_fraction_g', 'N', 'C', 'Fc', 'course_corr','soc_density_kgcm3'], 
-                       skiprows=12)
+                       skiprows=12, index_col= False)
 
 ## Specify the prefix
 target_prefix = 'HCH2'
