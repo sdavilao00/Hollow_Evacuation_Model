@@ -195,7 +195,7 @@ for v, i, z, k in zip(hc_max, Kh, slope_rad, hollow_rad):
 plt.figure()
 plt.grid()
 plt.title("Cohesion Comparison with NonLinear K")
-plt.yscale('log')
+#plt.yscale('log')
 plt.plot(hollow_ang, ri_max, label = 'C = 25.6 kPa')
 plt.plot(hollow_ang, ri_high, label = 'C = 11 kPa')
 plt.plot(hollow_ang, ri, label = 'C = 6.8 kPa')
