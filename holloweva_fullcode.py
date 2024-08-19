@@ -1,5 +1,12 @@
 # -*- coding: utf-8 -*-
 """
+Created on Tue May 21 14:54:36 2024
+
+@author: sdavilao
+"""
+
+# -*- coding: utf-8 -*-
+"""
 Created on Mon May 20 16:02:28 2024
 
 @author: sdavilao
@@ -30,36 +37,41 @@ hollow_ang = np.rad2deg(np.arctan((0.8*(np.tan(np.deg2rad(slope_ang)))))) # Holl
 
 #%% Function List
 
+# Initialize arrays to store values
+Knon = np.array([])
+hc = np.array([])
+ri = np.array([])
+
 # Define a funtion to find Knon given a Klin
 # This can be used for any Klin value
-def knon(a):
+def Knon(a):
     b = a / (1 - ((np.tan(slope_rad)/Sc)**2))
+    global Knon
+    Knon = np.append(Knon, b)  # Save the Knon value to the array
     return b
 
-def crit_depth(c):
-    result = c / (ps * g * (np.cos(hollow_rad) ** 2) * (np.tan(hollow_rad) - ((1 - (pw / ps)) * np.tan(phi))))
-    return result
+K = Knon(Klin)
 
 # Define a function to find RI and criticl depth for a given cohesion (a)
 # This is substituted for cohesion in the Oregon Coast Range (OCR) 
-## NOTE: your Klin must be altered here first??
-K = knon(Klin)
-
 def ri(a):
     # Nested crit_depth function
     def crit_depth(a):
         result = a / (ps * g * (np.cos(hollow_rad) ** 2) * (np.tan(hollow_rad) - ((1 - (pw / ps)) * np.tan(phi))))
         return result
     
-    hc = crit_depth(a)
+    h = crit_depth(a)
+    global hc
+    hc = np.append(hc, h)  # Save the crit_depth value to the list
     B = (np.cos(hollow_rad) ** 0.5) * ((np.tan(slope_rad) ** 2 - np.tan(hollow_rad) ** 2) ** 0.25) * ((np.cos(hollow_rad) ** 2 / np.cos(slope_rad) ** 2 - 1) ** 0.25)
-    A = (hc ** 2) / (B ** 2 * 2 * K)
+    A = (h ** 2) / (B ** 2 * 2 * K)
+    global ri
+    ri = np.append(ri, A)  # Save the ri value to the array
     return A
 
 # Define a function for hollow depth over a specified time of infilling (t) over a range of hollow slopes
 def hollow_depth(t):
-    result = ((2*K)**0.5)*(((np.cos(hollow_rad))**(1/2))*(((np.tan(slope_rad))**2)-((np.tan(hollow_rad))**2))**(1/4)) * ((((np.cos(hollow_rad)**2)/(np.cos(slope_rad)**2))-1)**(1/4))*(t**0.5)
+    result = ((2*Knon)**0.5)*(((np.cos(hollow_rad))**(1/2))*(((np.tan(slope_rad))**2)-((np.tan(hollow_rad))**2))**(1/4)) * ((((np.cos(hollow_rad)**2)/(np.cos(slope_rad)**2))-1)**(1/4))*(t**0.5)
     return result 
 
-
-hollow_depth(5000)
+ri(6800)
