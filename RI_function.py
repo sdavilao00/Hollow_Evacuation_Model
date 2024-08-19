@@ -135,3 +135,9 @@ plt.ylabel('Recurrance Interval (yrs)', fontsize = 14)
 
 # Show plot
 plt.show()
+
+
+
+plt.figure()
+plt.plot(hollow_ang, hc_if)
+plt.plot(hollow_ang, hc_ccf)
