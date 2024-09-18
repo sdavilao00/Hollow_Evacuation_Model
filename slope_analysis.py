@@ -37,15 +37,19 @@ plt.figure()
 plt.scatter(df._mean, df._average)
 
 sns.regplot(x=df._mean, y=df._average, data=df, ci=95, color='red', scatter=False, label='Regression Line')
+
 # Calculate the regression line equation
 slope, intercept, r_value, p_value, std_err = stats.linregress(df['_mean'], df['_average'])
 equation = f"Y = {slope:.2f}X + {intercept:.2f}"
+
 # Annotate the equation inside the plot
 # Dynamically calculate position
 x_pos = min(df['_mean']) + (max(df['_mean']) - min(df['_mean'])) * 0.05
 y_pos = min(df['_average']) + (max(df['_average']) - min(df['_average'])) * 0.9
+
 # Annotate the equation on the plot
 plt.text(x_pos, y_pos, equation, fontsize=12, color='red')
+
 # Print the equation of the regression line
 print(f"Regression line equation: Y = {slope:.2f}X + {intercept:.2f}")
 plt.xlabel('Basin Average Slope')
