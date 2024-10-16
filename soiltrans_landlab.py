@@ -18,7 +18,7 @@ from landlab.io import read_esri_ascii, write_esri_ascii
 #%%
 # Input geotiff file and directory
 BASE_DIR = os.path.join(os.getcwd(), 'ExampleDEM')
-INPUT_TIFF = 'Ososlid2014_f_3ftgrid.tif'
+INPUT_TIFF = 'rm_clip.tif'
 
 # Setup output directory
 OUT_DIR = os.path.join(BASE_DIR, 'simulation_results')
@@ -145,3 +145,26 @@ if __name__ == "__main__":
     end_time = 15000  # final simulation time (years)
 
     run_simulation(INPUT_TIFF, K, Sc, dt, end_time)
+#%%
+def display_image(time):
+    filename = f"{os.path.splitext(INPUT_TIFF)[0]}_{time}yrs_(K={K}).png"
+    filepath = os.path.join(OUT_DIRpng, filename)
+    if os.path.exists(filepath):
+        display(Image(filename=filepath))
+    else:
+        print("No file found for this year.")
+
+print(f"Diffusion coefficient K = {K} m²/yr")
+
+# Create a slider of time (dt)
+slider = widgets.IntSlider(
+    value=0,
+    min=0,
+    max=end_time,  # end_time should be defined in your earlier cells
+    step=dt,  # dt should be defined as your timestep size in years
+    description='Time (years):', #Name of the slider
+    continuous_update=False
+)
+
+# Interactive display of the image
+widgets.interactive(display_image, time=slider)

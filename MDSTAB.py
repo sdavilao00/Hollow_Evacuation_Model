@@ -32,23 +32,23 @@ g = 9.81  # m/s2 # force of gravity
 yw = g*pw
 ys = g*ps
 phi = np.deg2rad(41)  # converts phi to radians ## set to 42 right now
-#z = np.arange(0,5,0.1)
-z = 2.5
+z = np.arange(0,6,0.1)
+#z = 2.5
 
 # Slope stability variables
 m = 1 # m # saturation ration (h/z)
 l = 10 # m # length
-w = 5 # m # width
+w = 10 # m # width
 C0 = 6.8 # kPa
-j = 4.96
+j = 1.5
 
 #Define side/hollow slope range
-slope_ang = np.arange(27,51, 0.1) # Side slope range from 27 to 51 in degrees in 0.1 intervals
-slope_rad = np.deg2rad(slope_ang) # Side slope in radians
-hollow_rad = (np.arctan((0.8*(np.tan(np.deg2rad(slope_ang)))))) # Hollow slope in radians
-hollow_ang = np.rad2deg(np.arctan((0.8*(np.tan(np.deg2rad(slope_ang)))))) # Hollow slope in degrees
+# slope_ang = np.arange(27,51, 0.1) # Side slope range from 27 to 51 in degrees in 0.1 intervals
+# slope_rad = np.deg2rad(slope_ang) # Side slope in radians
+# hollow_rad = (np.arctan((0.8*(np.tan(np.deg2rad(slope_ang)))))) # Hollow slope in radians
+# hollow_ang = np.rad2deg(np.arctan((0.8*(np.tan(np.deg2rad(slope_ang)))))) # Hollow slope in degrees
+hollow_rad = np.deg2rad(36)
 
-#%% Calculated variables for MDSTAB
 
 #Cohesion variables
 Crb = C0*2.718281**(-z*j)
@@ -56,16 +56,32 @@ Crl = (C0/(j*z))*(1 - 2.718281**(-z*j))
 # Crb = 5 # kPa # Cohesion of roots on base
 # Crl = 5 # kPa # Lateral root cohesion
 
-
+#%% Calculated variables for MDSTAB
 
 # Earth Pressure Variables
 K0 = 1-(np.sin(hollow_rad))
-Ka = 0.3
-Kp = 6
 
+# Ka and Kp
+
+aa = 8*(Crl/(ys*z))*(np.cos(hollow_rad)**2)*np.sin(phi)*np.cos(phi)
+
+bb = 4*(Crl/(ys*z))*(np.cos(phi)**2)
+
+cc = 4*(np.cos(hollow_rad)**2)*(((np.cos(hollow_rad)**2)-(np.cos(phi)**2)))
+
+dd = 2*((Crl/(ys*z)))*(np.cos(phi)*np.sin(phi))
+
+ee = 2*(np.cos(hollow_rad))**2
+
+ff = 1/((np.cos(phi)**2))
+
+Kp = ff * ((ee) + (dd) + ((cc) + (bb) + (aa))**0.5) - 1
+
+Ka = ff * ((ee) + (dd) - ((cc) + (bb) + (aa))**0.5) - 1
 
 #%% MDSTAB
 
+# Define terms of equation
 #Basal resistence force of the slide block
 Frb = (Crb + ((np.cos(hollow_rad))**2)*z*(ys-yw*m)*np.tan(phi))*l*w
 
@@ -78,43 +94,50 @@ Frddu = (Kp-Ka)*0.5*(z**2)*(ys-yw*(m**2))*w
 # Central block driving force
 Fdc = (np.sin(hollow_rad))*(np.cos(hollow_rad))*z*ys*l*w
 
+
 #Factor of Safety calculation
 FS = (Frb + Frc + Frddu)/Fdc
 
 #%% Visualize
 
 plt.figure()
-plt.scatter(hollow_ang, FS)
+plt.scatter(z, FS)
 plt.xlabel('Hollow Angle')
 plt.ylabel('Factor of Safety')
 
 #%%
-#Set FS to 1 and solve for length where w = l*0.5
+# #Set FS to 1 and solve for length where w = l*0.5
 
-y = 4*(Crl + (K0*0.5*z*(ys-yw*m**2)*np.tan(phi)))*(np.cos(hollow_rad)*z)
-b = (Kp-Ka)*0.5*(z**2)*(ys-yw*(m**2))
-x = (Crb + ((np.cos(hollow_rad))**2)*z*(ys-yw*m)*np.tan(phi))
-a = (np.sin(hollow_rad))*(np.cos(hollow_rad))*z*ys
+# y = 4*(Crl + (K0*0.5*z*(ys-yw*m**2)*np.tan(phi)))*(np.cos(hollow_rad)*z)
+# b = (Kp-Ka)*0.5*(z**2)*(ys-yw*(m**2))
+# x = (Crb + ((np.cos(hollow_rad))**2)*z*(ys-yw*m)*np.tan(phi))
+# a = (np.sin(hollow_rad))*(np.cos(hollow_rad))*z*ys
 
-length = (x+b)/(a-x)
+# length = (x+b)/(a-x)
 
 
-
-plt.figure()
-plt.scatter(hollow_ang, length)
-plt.xlabel('Hollow Angle')
-plt.ylabel('Length (m)')
+# # plot
+# plt.figure()
+# plt.scatter(hollow_ang, length)
+# plt.xlabel('Hollow Angle')
+# plt.ylabel('Length (m)')
 
 #%% Area
 
+# Define terms of equation
 A = (2*Crl*z + K0*z**2*(ys-yw*m**2)*np.tan(phi))*np.cos(hollow_rad)*(l/w)**0.5
 B = (Kp-Ka)*0.5*z**2*(ys-ys*m**2)*(l/w)**(-0.5)
 C = (np.sin(hollow_rad)*np.cos(hollow_rad)*z*ys) - Crb - (((np.cos(hollow_rad))**2)*z*(ys-yw*m)*np.tan(phi))
 
-
+#Find critical area
 Ac = (A + B)/C
 
-
+#Plot
+plt.figure()
+plt.scatter(z, Ac)
+plt.xlabel('Depth')
+plt.ylabel('Crit Area')
+plt.yscale('log')
 
 
 
