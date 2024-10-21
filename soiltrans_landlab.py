@@ -18,7 +18,7 @@ from landlab.io import read_esri_ascii, write_esri_ascii
 #%%
 # Input geotiff file and directory
 BASE_DIR = os.path.join(os.getcwd(), 'ExampleDEM')
-INPUT_TIFF = 'rm_clip.tif'
+INPUT_TIFF = 'hc_clip.tif'
 
 # Setup output directory
 OUT_DIR = os.path.join(BASE_DIR, 'simulation_results')
@@ -145,6 +145,37 @@ if __name__ == "__main__":
     end_time = 15000  # final simulation time (years)
 
     run_simulation(INPUT_TIFF, K, Sc, dt, end_time)
+#%%
+def run_simulation(in_tiff, K, Sc, dt, target_time):
+    basefilename = os.path.splitext(in_tiff)[0]
+    in_asc = os.path.join(BASE_DIR, f"{basefilename}.asc")
+    mean_res, XYZunit = tiff_to_asc(os.path.join(BASE_DIR, in_tiff), in_asc) #convert input GeoTIFF to ASCII, and determine the XYZ units
+
+    grid, tnld = init_simulation(in_asc, K, Sc, XYZunit)
+    z = grid.at_node['topographic__elevation']
+
+    with rasterio.open(os.path.join(BASE_DIR, in_tiff)) as src:
+        meta = src.meta.copy()
+
+    asc_path = plot_save(grid, z, basefilename, 0, K, mean_res, XYZunit)
+    os.remove(asc_path)
+
+    num_steps = int(target_time / dt)
+    for i in range(num_steps):
+        tnld.run_one_step(dt)
+        time = (i + 1) * dt
+        asc_path = plot_save(grid, z, basefilename, time, K, mean_res, XYZunit)
+        
+        tiff_path = os.path.join(OUT_DIRtiff, f"{basefilename}_{time}yrs_(K={K}).tif")
+        asc_to_tiff(asc_path, tiff_path, meta)
+        
+        os.remove(asc_path)
+        
+    in_prj = in_asc.replace('.asc', '.prj')
+    os.remove(in_asc)
+    os.remove(in_prj)
+    print("Simulation completed. Temporary ASCII & PRJ files cleaned up.")
+
 #%%
 def display_image(time):
     filename = f"{os.path.splitext(INPUT_TIFF)[0]}_{time}yrs_(K={K}).png"
