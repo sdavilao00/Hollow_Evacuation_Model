@@ -18,7 +18,7 @@ from landlab.io import read_esri_ascii, write_esri_ascii
 #%%
 # Input geotiff file and directory
 BASE_DIR = os.path.join(os.getcwd(), 'ExampleDEM')
-INPUT_TIFF = 'hc_clip.tif'
+INPUT_TIFF = 'hc_smooth.tif'
 
 # Setup output directory
 OUT_DIR = os.path.join(BASE_DIR, 'simulation_results')
@@ -101,7 +101,58 @@ def plot_save(grid, z, basefilename, time, K, mean_res=None, XYZunit=None):
     write_esri_ascii(asc_path, grid, names=['topographic__elevation'], clobber=True)
     
     return asc_path
+#%% ORIGINAL SOIL TRANSPORT FROM LARRY
+
+# def run_simulation(in_tiff, K, Sc, dt, target_time):
+#     basefilename = os.path.splitext(in_tiff)[0]
+#     in_asc = os.path.join(BASE_DIR, f"{basefilename}.asc")
+#     mean_res, XYZunit = tiff_to_asc(os.path.join(BASE_DIR, in_tiff), in_asc) #convert input GeoTIFF to ASCII, and determine the XYZ units
+
+#     grid, tnld = init_simulation(in_asc, K, Sc, XYZunit)
+#     z = grid.at_node['topographic__elevation']
+
+#     with rasterio.open(os.path.join(BASE_DIR, in_tiff)) as src:
+#         meta = src.meta.copy()
+
+#     asc_path = plot_save(grid, z, basefilename, 0, K, mean_res, XYZunit)
+#     os.remove(asc_path)
+
+#     num_steps = int(target_time / dt)
+#     for i in range(num_steps):
+#         tnld.run_one_step(dt)
+#         time = (i + 1) * dt
+#         asc_path = plot_save(grid, z, basefilename, time, K, mean_res, XYZunit)
+        
+#         tiff_path = os.path.join(OUT_DIRtiff, f"{basefilename}_{time}yrs_(K={K}).tif")
+#         asc_to_tiff(asc_path, tiff_path, meta)
+        
+#         os.remove(asc_path)
+    
+        
+#     in_prj = in_asc.replace('.asc', '.prj')
+#     os.remove(in_asc)
+#     os.remove(in_prj)
+#     print("Simulation completed. Temporary ASCII & PRJ files cleaned up.")
 #%%
+# New parameters for soil production
+pr = 2700  # Rock density (kg/m^3)
+ps = 1000  # Soil density (kg/m^3)
+P = 0.00007  # Production rate (m/year)
+
+def compute_soil_production(pr, ps, P):
+    """
+    Calculate soil production using the formula:
+    (pr/ps) * P
+
+    :param pr: Rock density (kg/m^3)
+    :param ps: Soil density (kg/m^3)
+    :param P: Production rate (m/year)
+    :return: Soil production rate
+    """
+    soil_production = (pr / ps) * P
+    return soil_production
+
+# Modify the run_simulation function to incorporate soil production
 def run_simulation(in_tiff, K, Sc, dt, target_time):
     basefilename = os.path.splitext(in_tiff)[0]
     in_asc = os.path.join(BASE_DIR, f"{basefilename}.asc")
@@ -117,26 +168,37 @@ def run_simulation(in_tiff, K, Sc, dt, target_time):
     os.remove(asc_path)
 
     num_steps = int(target_time / dt)
-    for i in range(num_steps):
-        tnld.run_one_step(dt)
-        time = (i + 1) * dt
-        asc_path = plot_save(grid, z, basefilename, time, K, mean_res, XYZunit)
-        
-        tiff_path = os.path.join(OUT_DIRtiff, f"{basefilename}_{time}yrs_(K={K}).tif")
-        asc_to_tiff(asc_path, tiff_path, meta)
-        
-        os.remove(asc_path)
-        
-    in_prj = in_asc.replace('.asc', '.prj')
-    os.remove(in_asc)
-    os.remove(in_prj)
-    print("Simulation completed. Temporary ASCII & PRJ files cleaned up.")
+    try:
+        for i in range(num_steps):
+            tnld.run_one_step(dt)  # Update DEM with soil transport
+
+            # Calculate soil production using the formula (pr/ps) * P
+            soil_production = compute_soil_production(pr, ps, P) * dt  # Multiply by time step duration to get production over the step
+
+            # Add soil production to the elevation data
+            z += soil_production
+            
+            time = (i + 1) * dt
+            asc_path = plot_save(grid, z, basefilename, time, K, mean_res, XYZunit)
+            
+            tiff_path = os.path.join(OUT_DIRtiff, f"{basefilename}_{time}yrs_(K={K}).tif")
+            asc_to_tiff(asc_path, tiff_path, meta)
+            
+            os.remove(asc_path)
+    finally:
+        in_prj = in_asc.replace('.asc', '.prj')
+        if os.path.exists(in_asc):
+            os.remove(in_asc)
+        if os.path.exists(in_prj):
+            os.remove(in_prj)
+        print("Simulation completed. Temporary ASCII & PRJ files cleaned up.")
+
 #%%    
 if __name__ == "__main__":
     # diffusion coefficient, m^2/y
     #K = 0.011
     #K = 0.0056
-    K = 0.0029     #Used in Fig.6 of Booth et al. (2017)
+    K = 0.004     #Used in Fig.6 of Booth et al. (2017)
     #K = 0.0015
     #K = 0.00082
 
@@ -145,38 +207,9 @@ if __name__ == "__main__":
     end_time = 15000  # final simulation time (years)
 
     run_simulation(INPUT_TIFF, K, Sc, dt, end_time)
-#%%
-def run_simulation(in_tiff, K, Sc, dt, target_time):
-    basefilename = os.path.splitext(in_tiff)[0]
-    in_asc = os.path.join(BASE_DIR, f"{basefilename}.asc")
-    mean_res, XYZunit = tiff_to_asc(os.path.join(BASE_DIR, in_tiff), in_asc) #convert input GeoTIFF to ASCII, and determine the XYZ units
-
-    grid, tnld = init_simulation(in_asc, K, Sc, XYZunit)
-    z = grid.at_node['topographic__elevation']
-
-    with rasterio.open(os.path.join(BASE_DIR, in_tiff)) as src:
-        meta = src.meta.copy()
-
-    asc_path = plot_save(grid, z, basefilename, 0, K, mean_res, XYZunit)
-    os.remove(asc_path)
-
-    num_steps = int(target_time / dt)
-    for i in range(num_steps):
-        tnld.run_one_step(dt)
-        time = (i + 1) * dt
-        asc_path = plot_save(grid, z, basefilename, time, K, mean_res, XYZunit)
-        
-        tiff_path = os.path.join(OUT_DIRtiff, f"{basefilename}_{time}yrs_(K={K}).tif")
-        asc_to_tiff(asc_path, tiff_path, meta)
-        
-        os.remove(asc_path)
-        
-    in_prj = in_asc.replace('.asc', '.prj')
-    os.remove(in_asc)
-    os.remove(in_prj)
-    print("Simulation completed. Temporary ASCII & PRJ files cleaned up.")
 
 #%%
+
 def display_image(time):
     filename = f"{os.path.splitext(INPUT_TIFF)[0]}_{time}yrs_(K={K}).png"
     filepath = os.path.join(OUT_DIRpng, filename)

@@ -113,7 +113,7 @@ plt.show()
 # Depth ober time for a shallow (32) slope
 # find your respective side slope value
 # Knon was pulled from our modeled Knon function for respective hollow slope
-slope = np.deg2rad(35.8)
+slope = np.deg2rad(43)
 hollow = np.arctan(0.8 * np.tan(slope))
 t = np.arange(0, 3142) # This will have to be pulled from RI function as well
 dep_shal = (
