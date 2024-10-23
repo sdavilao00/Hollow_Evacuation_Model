@@ -39,7 +39,7 @@ z = np.arange(0,6,0.1)
 m = 1 # m # saturation ration (h/z)
 l = 10 # m # length
 w = 10 # m # width
-C0 = 6.8 # kPa
+C0 = 22000 # Pa
 j = 1.5
 
 #Define side/hollow slope range
@@ -125,23 +125,34 @@ plt.ylabel('Factor of Safety')
 #%% Area
 
 # Define terms of equation
-A = (2*Crl*z + K0*z**2*(ys-yw*m**2)*np.tan(phi))*np.cos(hollow_rad)*(l/w)**0.5
-B = (Kp-Ka)*0.5*z**2*(ys-ys*m**2)*(l/w)**(-0.5)
+A = (2*Crl*z + K0*(z**2)*(ys-yw*(m**2))*np.tan(phi))*np.cos(hollow_rad)*(l/w)**0.5
+B = (Kp-Ka)*0.5*(z**2)*(ys-yw*(m**2))*(l/w)**(-0.5)
 C = (np.sin(hollow_rad)*np.cos(hollow_rad)*z*ys) - Crb - (((np.cos(hollow_rad))**2)*z*(ys-yw*m)*np.tan(phi))
 
 #Find critical area
-Ac = (A + B)/C
+Ac = ((A + B)/C)**2
 
 #Plot
 plt.figure()
+
 plt.scatter(z, Ac)
-plt.xlabel('Depth')
-plt.ylabel('Crit Area')
+plt.grid(color='gray')
+plt.xlabel('Depth (m)')
+plt.ylabel('Crit Area (m2)')
 plt.yscale('log')
 
 
 
+#%% Area
+# d_s = (np.deg2rad(38-36))
 
+# # Define terms of equation
+# A = (2*Crl*z + K0*(z**2)*(ys-yw*(m**2))*np.tan(phi))*np.cos(hollow_rad)*(l/w)**0.5
+# B = (Kp-Ka)*0.5*(z**2)*(ys-yw*(m**2))*(np.cos(d_s) - np.sin(d_s)*np.tan(phi))*(l/w)**(-0.5)
+# C = (np.sin(hollow_rad)*np.cos(hollow_rad)*z*ys) - Crb - (((np.cos(hollow_rad))**2)*z*(ys-yw*m)*np.tan(phi))
+
+# #Find critical area
+# Ac = ((A + B)/C)**2
 
 
 
