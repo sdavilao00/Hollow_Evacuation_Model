@@ -232,3 +232,137 @@ slider = widgets.IntSlider(
 
 # Interactive display of the image
 widgets.interactive(display_image, time=slider)
+
+#%%
+
+import numpy as np
+import rasterio
+import os
+import matplotlib.pyplot as plt
+
+# Constants for soil production
+pr = 2000  # Rock density (kg/m^3)
+ps = 1000  # Soil density (kg/m^3)
+P0 = 0.003  # Initial production rate (m/year)
+h0 = 0.4  # Decay constant (meters)
+
+# Assuming BASE_DIR and INPUT_TIFF are already defined as in your original code
+BASE_DIR = os.path.join(os.getcwd(), 'ExampleDEM')
+INPUT_TIFF = 'hc_clip.tif'
+
+# Directory to save PNGs
+OUT_DIRpng = os.path.join(BASE_DIR, 'simulation_results', 'PNGs')
+os.makedirs(OUT_DIRpng, exist_ok=True)
+
+def initialize_soil_depth_grid(tiff_path, initial_soil_depth=0.5):
+    """
+    Create a grid of the same size as the input TIFF file and set the soil depth everywhere to the initial value.
+
+    :param tiff_path: Path to the input GeoTIFF file.
+    :param initial_soil_depth: The initial soil depth value (in meters).
+    :return: A numpy array representing the soil depth grid.
+    """
+    with rasterio.open(tiff_path) as src:
+        # Get the shape of the input DEM (number of rows and columns)
+        height, width = src.shape
+    
+    # Create a new grid with the same shape, setting the soil depth to 0.5 meters everywhere
+    soil_depth_grid = np.full((height, width), initial_soil_depth)
+    
+    return soil_depth_grid
+
+def calculate_soil_production(soil_depth_grid, dt):
+    """
+    Calculate the soil production for each grid cell using the provided formula.
+    
+    :param soil_depth_grid: The current soil depth at each grid cell.
+    :param dt: Time step duration (in years).
+    :return: A grid of soil production values to be added to the current soil depth.
+    """
+    # Soil production equation: (pr/ps) * (P0 * e^(-h/h0)) * dt
+    production_rate = (pr / ps) * (P0 * np.exp(-soil_depth_grid / h0)) * dt
+    return production_rate
+
+def save_soil_depth_as_png(soil_depth_grid, step):
+    """
+    Save the soil depth grid as a PNG image.
+
+    :param soil_depth_grid: The 2D numpy array representing soil depth values.
+    :param step: Current step of the simulation, used to name the file.
+    """
+    plt.figure(figsize=(8, 6))
+    plt.imshow(soil_depth_grid, cmap='terrain', origin='upper')
+    plt.colorbar(label='Soil Depth (m)')
+    plt.title(f'Soil Depth at Step {step * 1000} Years')
+    plt.xlabel('X')
+    plt.ylabel('Y')
+
+    output_png_path = os.path.join(OUT_DIRpng, f'soil_depth_step_{step}.png')
+    plt.savefig(output_png_path, dpi=150)
+    plt.close()
+    
+    print(f"Soil depth PNG saved as '{output_png_path}'")
+
+# Use the same TIFF path from the start of the original code
+tiff_path = os.path.join(BASE_DIR, INPUT_TIFF)
+
+# Initialize soil depth grid
+soil_depth_grid = initialize_soil_depth_grid(tiff_path)
+
+# Simulation parameters
+dt = 1000  # Time step duration (in years)
+total_time = 15000  # Total simulation time (in years)
+num_steps = int(total_time / dt)
+
+# Run the simulation, adding soil production at each time step and saving PNGs
+for step in range(num_steps):
+    # Calculate soil production for this time step
+    soil_production = calculate_soil_production(soil_depth_grid, dt)
+    
+    # Add the soil production to the current soil depth
+    soil_depth_grid += soil_production
+    
+    # Save the soil depth as a PNG for this time step
+    save_soil_depth_as_png(soil_depth_grid, step + 1)
+
+print("Simulation completed.")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
