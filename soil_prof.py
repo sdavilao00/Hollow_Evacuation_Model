@@ -16,7 +16,7 @@ import pandas as pd
 
 #%%
 # read in excel file
-path = "C:\\Users\\sdavilao\\Documents\\Hollow_Data\\SOC_data\\SOC_HCH.xlsx"
+path = "C:\\Users\\12092\\Documents\\Hollow_Data\\SOC_data\\SOC_HCH.xlsx"
 
 # make dataframe
 SOC_df = pd.read_excel(path, names=['depth_m', 'upper_m', 'mid_m', 'sample', 'before_sieve_g', 

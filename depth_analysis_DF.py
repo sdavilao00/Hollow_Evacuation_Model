@@ -68,14 +68,14 @@ t_200 = hollow_depth(200)
 t_500 = hollow_depth(500)
 t_1000 = hollow_depth(1000)
 t_5000 = hollow_depth(5000)
-t_10000 = hollow_depth(10000)
+t_15000 = hollow_depth(15000)
 t_50000 = hollow_depth(50000)
 t_80000 = hollow_depth(80000)
 
 # Make a dataframe for this
-df = pd.DataFrame(zip(hollow_ang, slope_ang, Knon, t_10, t_20, t_27, t_35, t_50, t_100, t_200, t_500, t_1000, t_5000, t_10000, t_50000, t_80000))
+df = pd.DataFrame(zip(hollow_ang, slope_ang, Knon, t_10, t_20, t_27, t_35, t_50, t_100, t_200, t_500, t_1000, t_5000, t_15000, t_50000, t_80000))
 df.columns = ['hollow_angle', 'slope_angle', 'Knon', 'Depth_10','Depth_20','Depth_27','Depth_35','Depth_50','Depth_100','Depth_200',
-              'Depth_500', 'Depth_1000', 'Depth_5000', 'Depth_10000', 'Depth_50000', 'Depth_80000']
+              'Depth_500', 'Depth_1000', 'Depth_5000', 'Depth_15000', 'Depth_50000', 'Depth_80000']
 
 #%% 
 # Plot depth for given hollow infilling for given hollow slope
@@ -84,18 +84,23 @@ sns.set(style="darkgrid")
 
 # Plot the data
 plt.figure(dpi = 150)
-sns.lineplot(data=df, x='hollow_angle', y='Depth_100', label = "Reference", color='black')
-sns.lineplot(data=df, x='hollow_angle', y='Depth_50', color='black')
-sns.lineplot(data=df, x='hollow_angle', y='Depth_20', color='black')
+sns.lineplot(data=df, x='hollow_angle', y='Depth_15000', label = "15000 years", color='red')
+sns.lineplot(data=df, x='hollow_angle', y='Depth_5000', label = "5000 years", color='blue')
+sns.lineplot(data=df, x='hollow_angle', y='Depth_1000', label = "1000 years", color='black')
+# sns.lineplot(data=df, x='hollow_angle', y='Depth_20', color='black')
 
-# These are the survey depths for six hollows with their respective error bars
-plt.errorbar(34, 0.27, yerr=0.11, fmt='-o', color='orange', linestyle='None', capsize=5, capthick=2, label='Elliott State Forest - 27 years of Infilling')
-plt.errorbar(30, 0.36, yerr=0.06, fmt='-o', color='orange', linestyle='None', capsize=5, capthick=2)
-plt.errorbar(28, 0.27, yerr=0.05, fmt='-o', color='orange', linestyle='None', capsize=5, capthick=2)
-plt.errorbar(29, 0.33, yerr=0.12, fmt='-o', color='orange', linestyle='None', capsize=5, capthick=2)
-plt.errorbar(30, 0.19, yerr=0.09, fmt='-o', color='orange', linestyle='None', capsize=5, capthick=2)
-plt.errorbar(34, 0.16, yerr=0.07, fmt='-o', color='orange', linestyle='None', capsize=5, capthick=2)
-plt.errorbar(39, 0.44, yerr=0.14, fmt='-o', color='blue', linestyle='None', capsize=5, capthick=2, label='Hadsall Creek - 21 years of infilling')
+plt.scatter(41, 3.5, color='orange', linestyle='None', label = 'LIDAR Data')
+plt.scatter(40, 3.1, color='orange', linestyle='None')
+plt.scatter(40, 2.7, color='orange', linestyle='None')
+
+# # These are the survey depths for six hollows with their respective error bars
+# plt.errorbar(34, 0.27, yerr=0.11, fmt='-o', color='orange', linestyle='None', capsize=5, capthick=2, label='Elliott State Forest - 27 years of Infilling')
+# plt.errorbar(30, 0.36, yerr=0.06, fmt='-o', color='orange', linestyle='None', capsize=5, capthick=2)
+# plt.errorbar(28, 0.27, yerr=0.05, fmt='-o', color='orange', linestyle='None', capsize=5, capthick=2)
+# plt.errorbar(29, 0.33, yerr=0.12, fmt='-o', color='orange', linestyle='None', capsize=5, capthick=2)
+# plt.errorbar(30, 0.19, yerr=0.09, fmt='-o', color='orange', linestyle='None', capsize=5, capthick=2)
+# plt.errorbar(34, 0.16, yerr=0.07, fmt='-o', color='orange', linestyle='None', capsize=5, capthick=2)
+# plt.errorbar(39, 0.44, yerr=0.14, fmt='-o', color='blue', linestyle='None', capsize=5, capthick=2, label='Hadsall Creek - 21 years of infilling')
 
 # Set title and labels
 plt.title('Model Depth Validation')
