@@ -2,7 +2,7 @@
 """
 Created on Tue Nov  5 17:32:06 2024
 
-@author: 12092
+@author: Selina Davila Olivera
 """
 #%%
 import os
@@ -157,19 +157,15 @@ def run_simulation(in_tiff, K, Sc, dt, target_time):
     mean_res, XYZunit = tiff_to_asc(os.path.join(BASE_DIR, in_tiff), in_asc)
 
     grid, tnld = init_simulation(in_asc, K, Sc, XYZunit)
-    z_old = grid.at_node['topographic__elevation'].copy()
+    z_old = grid.at_node['topographic__elevation']
     soil_depth = grid.at_node['soil__depth']
     
-    # Store the initial elevation and soil depth
-    initial_elevation = z_old.copy()
+    # Store the initial soil depth
     initial_soil_depth = soil_depth.copy()
     
     # Initialize total soil depth
     total_soil_depth = soil_depth.copy()
 
-    # Initialize lists to store change in soil depth and total soil depth for each time step
-    change_in_soil_depth_array = []
-    total_soil_depth_array = []
 
     with rasterio.open(os.path.join(BASE_DIR, in_tiff)) as src:
         meta = src.meta.copy()
@@ -182,24 +178,40 @@ def run_simulation(in_tiff, K, Sc, dt, target_time):
         time = (i + 1) * dt
         
         # Calculate soil production for this time step
-        production_rate = (pr / ps) * (P0 * np.exp(-total_soil_depth)) * dt
+        production_rate = (pr / ps) * (P0 * np.exp(-total_soil_depth/h0)) * dt
         z_new = grid.at_node['topographic__elevation']
         elevation_change = z_new - z_old
 
-        erosion_exceeds = elevation_change > initial_soil_depth
+        # Check if erosion exceeds the current total soil depth
+        erosion_exceeds = abs(elevation_change) > initial_soil_depth
 
         if np.any(erosion_exceeds):
-            z_new[erosion_exceeds] = initial_elevation[erosion_exceeds] - initial_soil_depth[erosion_exceeds]
+            # For nodes where erosion exceeds soil depth
+            # Set the new elevation to initial elevation minus current total soil depth
+            z_new[erosion_exceeds] = z_old[erosion_exceeds] - total_soil_depth[erosion_exceeds]
+            
+            # Set soil depth to zero where erosion exceeds initial soil depth
+            total_soil_depth[erosion_exceeds] = production_rate[erosion_exceeds]
+            
             print(f"Erosion exceeded soil depth at time {time} years. Adjusting elevation.")
 
-        change_in_soil_depth = elevation_change + production_rate
-        total_soil_depth += change_in_soil_depth
-        grid.at_node['soil__depth'] = total_soil_depth
-        z_old = z_new.copy()
+        # Initialize change in soil depth with production rate
+        change_in_soil_depth = production_rate.copy()
 
-        # Append the change in soil depth and total soil depth to the arrays
-        change_in_soil_depth_array.append(change_in_soil_depth.copy())
-        total_soil_depth_array.append(total_soil_depth.copy())
+        # For nodes where erosion does NOT exceed initial soil depth, update as normal
+        change_in_soil_depth[~erosion_exceeds] = elevation_change[~erosion_exceeds] + production_rate[~erosion_exceeds]
+
+        # Update total soil depth
+        total_soil_depth = np.where(erosion_exceeds, production_rate, total_soil_depth + change_in_soil_depth)
+
+        # Ensure no negative soil depth as a final check
+        # total_soil_depth = np.maximum(total_soil_depth, 0)
+
+        # Update the soil depth field in the grid
+        grid.at_node['soil__depth'] = total_soil_depth
+
+        # Copy the new elevation for the next iteration
+        z_old = z_new.copy()
 
         # Output results every 500 years
         if time % 1000 == 0:
@@ -234,50 +246,21 @@ def run_simulation(in_tiff, K, Sc, dt, target_time):
     os.remove(in_prj)
     print("Simulation completed. Temporary ASCII & PRJ files cleaned up.")
 
-    # Convert lists to numpy arrays if needed
-    change_in_soil_depth_array = np.array(change_in_soil_depth_array)
-    total_soil_depth_array = np.array(total_soil_depth_array)
-
-    print(f"Change in Soil Depth Array Shape: {change_in_soil_depth_array.shape}")
-    print(f"Total Soil Depth Array Shape: {total_soil_depth_array.shape}")
-
-    return change_in_soil_depth_array, total_soil_depth_array  # Return the arrays
 
 #%%
 # Example run parameters
-K = 0.005  # Diffusion coefficient
+K = 0.0042  # Diffusion coefficient
 Sc = 1.25  # Critical slope gradient
 pr = 2000   # Ratio of production (example value)
 ps = 1000   # Ratio of soil loss (example value)
 P0 = 0.0003  # Initial soil production rate (example value, e.g., kg/m²/year)
-h0 = 0.7   # Depth constant related to soil production (example value, e.g., meters)
+h0 = 0.4   # Depth constant related to soil production (example value, e.g., meters)
 dt = 50
 target_time = 15000
 
+
 run_simulation(INPUT_TIFF, K, Sc, dt, target_time)
 
-# Call the simulation and capture the returned arrays
-change_in_soil_depth, total_soil_depth = run_simulation(INPUT_TIFF, K, Sc, dt, target_time)
 
-# Now you can see the arrays
-print("Final Change in Soil Depth Array:")
-print(change_in_soil_depth)
-
-print("Final Total Soil Depth Array:")
-print(total_soil_depth)
-
-#%%
-def plot_array(array, title):
-    plt.figure(figsize=(10, 6))
-    plt.plot(array, marker='o')
-    plt.title(title)
-    plt.xlabel('Time Steps')
-    plt.ylabel('Value')
-    plt.grid(True)
-    plt.show()
-
-# After the simulation
-plot_array(change_in_soil_depth, 'Change in Soil Depth Over Time')
-plot_array(total_soil_depth, 'Total Soil Depth Over Time')
 
 
