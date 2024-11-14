@@ -140,7 +140,7 @@ Sc = 1.25  # Critical slope gradient
 dt = 1000  # Time step duration (in years)
 total_time = 5000  # Total simulation time (in years)
 
-elevation_change = run_simulation(INPUT_TIFF, K, Sc, dt, total_time)
+
 
 #%%
 

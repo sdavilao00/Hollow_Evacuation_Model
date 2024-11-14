@@ -177,6 +177,7 @@ def run_simulation(in_tiff, K, Sc, dt, target_time):
         tnld.run_one_step(dt)
         time = (i + 1) * dt
         
+        
         # Calculate soil production for this time step
         production_rate = (pr / ps) * (P0 * np.exp(-total_soil_depth/h0)) * dt
         z_new = grid.at_node['topographic__elevation']
@@ -240,9 +241,11 @@ def run_simulation(in_tiff, K, Sc, dt, target_time):
             plot_change(elevation_change, "Change in Elevation", basefilename, time, K, grid_shape)
             plot_change(change_in_soil_depth, "Change in Soil Depth", basefilename, time, K, grid_shape)
             plot_change(total_soil_depth, "Total Soil Depth", basefilename, time, K, grid_shape)
-        
-        tiff_path = os.path.join(OUT_DIRtiff, f"{basefilename}_{time}yrs_(K={K}).tif")
-        asc_to_tiff(asc_path, tiff_path, meta)
+            
+        if time % 1000 == 0:
+           asc_path = plot_save(grid, z_new, basefilename, time, K, mean_res, XYZunit)
+           tiff_path = os.path.join(OUT_DIRtiff, f"{basefilename}_{time}yrs_(K={K}).tif")
+           asc_to_tiff(asc_path, tiff_path, meta)
         
     in_prj = in_asc.replace('.asc', '.prj')
     os.remove(in_asc)
@@ -259,7 +262,7 @@ ps = 1000   # Ratio of soil loss (example value)
 P0 = 0.0003  # Initial soil production rate (example value, e.g., kg/m²/year)
 h0 = 0.4   # Depth constant related to soil production (example value, e.g., meters)
 dt = 50
-target_time = 15000
+target_time = 5000
 
 
 run_simulation(INPUT_TIFF, K, Sc, dt, target_time)
