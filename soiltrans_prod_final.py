@@ -240,7 +240,10 @@ def run_simulation(in_tiff, K, Sc, dt, target_time):
             plot_change(elevation_change, "Change in Elevation", basefilename, time, K, grid_shape)
             plot_change(change_in_soil_depth, "Change in Soil Depth", basefilename, time, K, grid_shape)
             plot_change(total_soil_depth, "Total Soil Depth", basefilename, time, K, grid_shape)
-
+        
+        tiff_path = os.path.join(OUT_DIRtiff, f"{basefilename}_{time}yrs_(K={K}).tif")
+        asc_to_tiff(asc_path, tiff_path, meta)
+        
     in_prj = in_asc.replace('.asc', '.prj')
     os.remove(in_asc)
     os.remove(in_prj)
