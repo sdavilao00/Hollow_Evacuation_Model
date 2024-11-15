@@ -17,7 +17,7 @@ from landlab.io import read_esri_ascii, write_esri_ascii
 #%%
 # Input GeoTIFF file and directory
 BASE_DIR = os.path.join(os.getcwd(), 'ExampleDEM')
-INPUT_TIFF = 'hc_smooth.tif'
+INPUT_TIFF = 'hc_smooth_clip.tif'
 
 # Setup output directory
 OUT_DIR = os.path.join(BASE_DIR, 'simulation_results')
@@ -116,10 +116,20 @@ def plot_save(grid, z, basefilename, time, K, mean_res=None, XYZunit=None):
     return asc_path
 
 #%%
-def plot_change(change, title, basefilename, time, K, grid_shape):
+def plot_change(change, title, basefilename, time, K, grid_shape, flip_vertical= True, flip_horizontal=False):
+    """Plot and save PNGs of changes with optional flipping."""
     # Check if change is 1D and reshape it if necessary
     if change.ndim == 1:
         change = change.reshape(grid_shape)  # Ensure this matches your grid's dimensions
+
+    # Flip the data vertically if specified
+    if flip_vertical:
+        change = np.flipud(change)
+
+    # Flip the data horizontally if specified
+    if flip_horizontal:
+        change = np.fliplr(change)
+        
 
     plt.figure(figsize=(6, 5.25))
     plt.imshow(change, cmap='viridis', interpolation='nearest')
@@ -136,15 +146,20 @@ def plot_change(change, title, basefilename, time, K, grid_shape):
     print(f"'{png_change_path}' saved to 'simulation_results' folder")
 
 #%%
-def save_as_tiff(data, filename, meta, grid_shape):
-    """Save a numpy array as a GeoTIFF file."""
+def save_as_tiff(data, filename, meta, grid_shape, flip_vertical=True, flip_horizontal=False):
+    """Save a numpy array as a GeoTIFF file with optional flipping."""
     # Check if data is 1D and reshape it if necessary
     if data.ndim == 1:
         data = data.reshape(grid_shape)  # Ensure this matches your grid's dimensions
 
-    # Flip the data vertically
-    data = np.flipud(data)
+    # Flip the data vertically if specified
+    if flip_vertical:
+        data = np.flipud(data)
 
+    # Flip the data horizontally if specified
+    if flip_horizontal:
+        data = np.fliplr(data)
+        
     with rasterio.open(filename, 'w', **meta) as dst:
         dst.write(data.astype(rasterio.float32), 1)
     print(f"'{os.path.basename(filename)}' saved as a GeoTIFF.")
@@ -171,6 +186,13 @@ def run_simulation(in_tiff, K, Sc, dt, target_time):
         meta = src.meta.copy()
 
     asc_path = plot_save(grid, z_old, basefilename, 0, K, mean_res, XYZunit)
+    
+    # # Initialize accumulators for soil production and transport
+    # total_soil_produced = 0
+    # total_soil_transport = 0
+
+    # # List to store time and percentage data for each 1000-year interval
+    # soil_production_vs_transport_data = []
 
     num_steps = int(target_time / dt)
     for i in range(num_steps):
@@ -182,6 +204,13 @@ def run_simulation(in_tiff, K, Sc, dt, target_time):
         production_rate = (pr / ps) * (P0 * np.exp(-total_soil_depth/h0)) * dt
         z_new = grid.at_node['topographic__elevation']
         elevation_change = z_new - z_old
+        
+        # # Calculate soil production and add to total
+        # production_rate = (pr / ps) * (P0 * np.exp(-total_soil_depth / h0)) * dt
+        # total_soil_produced_nodes = production_rate
+        
+        # Calculate soil transport (erosion) and add to total
+        # soil_transport_nodes = np.abs(elevation_change[elevation_change < 0])  # Sum of erosion (negative elevation change
 
         # Check if erosion exceeds the current total soil depth
         erosion_exceeds = abs(elevation_change) > initial_soil_depth
@@ -231,6 +260,9 @@ def run_simulation(in_tiff, K, Sc, dt, target_time):
 
             tiff_total_soil_depth_path = os.path.join(OUT_DIRtiff, f"{basefilename}_total_soil_depth_{time}yrs.tif")
             save_as_tiff(total_soil_depth, tiff_total_soil_depth_path, meta, grid.shape)
+            
+            tiff_production_rate_path = os.path.join(OUT_DIRtiff, f"{basefilename}_production_rate_{time}yrs.tif")
+            save_as_tiff(production_rate, tiff_production_rate_path, meta, grid.shape)
 
             # Save the current elevation as a GeoTIFF
             tiff_elevation_path = os.path.join(OUT_DIRtiff, f"{basefilename}_elevation_{time}yrs.tif")
@@ -241,16 +273,41 @@ def run_simulation(in_tiff, K, Sc, dt, target_time):
             plot_change(elevation_change, "Change in Elevation", basefilename, time, K, grid_shape)
             plot_change(change_in_soil_depth, "Change in Soil Depth", basefilename, time, K, grid_shape)
             plot_change(total_soil_depth, "Total Soil Depth", basefilename, time, K, grid_shape)
-            
-        if time % 1000 == 0:
-           asc_path = plot_save(grid, z_new, basefilename, time, K, mean_res, XYZunit)
-           tiff_path = os.path.join(OUT_DIRtiff, f"{basefilename}_{time}yrs_(K={K}).tif")
-           asc_to_tiff(asc_path, tiff_path, meta)
+            plot_change(production_rate, "Soil Produced", basefilename, time, K, grid_shape)
+         
+        # # Every 1000 years, calculate the percentage and reset the counters
+        # if time % 1000 == 0:
+        #     # Calculate the percentage of production vs transport for each node
+        #     soil_transport_nodes = np.where(soil_transport_nodes == 0, 1e-10, soil_transport_nodes)
+        #     percent_soil_produced_nodes = (production_rate / soil_transport_nodes) * 100
+        #     percent_soil_produced_nodes = np.clip(percent_soil_produced_nodes, 0, 100)  # Keep percentages valid
         
+        #     # Append time and node-by-node percentages to list
+        #     soil_production_vs_transport_data.append([time, percent_soil_produced_nodes, 100 - percent_soil_produced_nodes])
+
+        #     # Reset accumulators for the next 1000-year interval
+        #     total_soil_produced = 0
+        #     total_soil_transport = 0
+
+        # if time % 200 == 0:
+        #     asc_path = plot_save(grid, z_new, basefilename, time, K, mean_res, XYZunit)
+        #     tiff_path = os.path.join(OUT_DIRtiff, f"{basefilename}_{time}yrs_(K={K}).tif")
+        #     asc_to_tiff(asc_path, tiff_path, meta)
+    
+    # # Convert the results list to a NumPy array for easier analysis
+    # soil_production_vs_transport_array = np.array(soil_production_vs_transport_data)
+    
+    # # Display the final array
+    # print("Soil Production vs Transport Array (Time, % Produced, % Transported):")
+    # print(soil_production_vs_transport_array)
+
     in_prj = in_asc.replace('.asc', '.prj')
     os.remove(in_asc)
     os.remove(in_prj)
     print("Simulation completed. Temporary ASCII & PRJ files cleaned up.")
+    
+    # # Return the array so it can be accessed outside the function
+    # return soil_production_vs_transport_array
 
 
 #%%
@@ -262,10 +319,12 @@ ps = 1000   # Ratio of soil loss (example value)
 P0 = 0.0003  # Initial soil production rate (example value, e.g., kg/m²/year)
 h0 = 0.4   # Depth constant related to soil production (example value, e.g., meters)
 dt = 50
-target_time = 5000
-
+target_time = 15000
 
 run_simulation(INPUT_TIFF, K, Sc, dt, target_time)
+
+# soil_production_vs_transport_array = run_simulation(INPUT_TIFF, K, Sc, dt, target_time)
+
 
 
 
