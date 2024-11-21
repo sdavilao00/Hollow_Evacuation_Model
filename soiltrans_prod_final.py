@@ -289,10 +289,10 @@ def run_simulation(in_tiff, K, Sc, dt, target_time):
         #     total_soil_produced = 0
         #     total_soil_transport = 0
 
-        # if time % 200 == 0:
-        #     asc_path = plot_save(grid, z_new, basefilename, time, K, mean_res, XYZunit)
-        #     tiff_path = os.path.join(OUT_DIRtiff, f"{basefilename}_{time}yrs_(K={K}).tif")
-        #     asc_to_tiff(asc_path, tiff_path, meta)
+        if time % 1000 == 0:
+            asc_path = plot_save(grid, z_new, basefilename, time, K, mean_res, XYZunit)
+            tiff_path = os.path.join(OUT_DIRtiff, f"{basefilename}_{time}yrs_(K={K}).tif")
+            asc_to_tiff(asc_path, tiff_path, meta)
     
     # # Convert the results list to a NumPy array for easier analysis
     # soil_production_vs_transport_array = np.array(soil_production_vs_transport_data)
