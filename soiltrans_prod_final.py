@@ -17,7 +17,7 @@ from landlab.io import read_esri_ascii, write_esri_ascii
 #%%
 # Input GeoTIFF file and directory
 BASE_DIR = os.path.join(os.getcwd(), 'ExampleDEM')
-INPUT_TIFF = 'hc_smooth_clip.tif'
+INPUT_TIFF = 'MDSTAB_Test.tif'
 
 # Setup output directory
 OUT_DIR = os.path.join(BASE_DIR, 'simulation_results')
@@ -243,7 +243,7 @@ def run_simulation(in_tiff, K, Sc, dt, target_time):
         # Copy the new elevation for the next iteration
         z_old = z_new.copy()
 
-        # Output results every 500 years
+        # Output results every 1000 years
         if time % 1000 == 0:
             print(f"Results at {time} years:")
             print(f"Total Soil Depth: {total_soil_depth}")
@@ -275,19 +275,6 @@ def run_simulation(in_tiff, K, Sc, dt, target_time):
             plot_change(total_soil_depth, "Total Soil Depth", basefilename, time, K, grid_shape)
             plot_change(production_rate, "Soil Produced", basefilename, time, K, grid_shape)
          
-        # # Every 1000 years, calculate the percentage and reset the counters
-        # if time % 1000 == 0:
-        #     # Calculate the percentage of production vs transport for each node
-        #     soil_transport_nodes = np.where(soil_transport_nodes == 0, 1e-10, soil_transport_nodes)
-        #     percent_soil_produced_nodes = (production_rate / soil_transport_nodes) * 100
-        #     percent_soil_produced_nodes = np.clip(percent_soil_produced_nodes, 0, 100)  # Keep percentages valid
-        
-        #     # Append time and node-by-node percentages to list
-        #     soil_production_vs_transport_data.append([time, percent_soil_produced_nodes, 100 - percent_soil_produced_nodes])
-
-        #     # Reset accumulators for the next 1000-year interval
-        #     total_soil_produced = 0
-        #     total_soil_transport = 0
 
         if time % 1000 == 0:
             asc_path = plot_save(grid, z_new, basefilename, time, K, mean_res, XYZunit)
@@ -319,7 +306,7 @@ ps = 1000   # Ratio of soil loss (example value)
 P0 = 0.0003  # Initial soil production rate (example value, e.g., kg/m²/year)
 h0 = 0.4   # Depth constant related to soil production (example value, e.g., meters)
 dt = 50
-target_time = 15000
+target_time = 3000
 
 run_simulation(INPUT_TIFF, K, Sc, dt, target_time)
 

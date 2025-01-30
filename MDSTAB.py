@@ -105,22 +105,6 @@ plt.scatter(z, FS)
 plt.xlabel('Hollow Angle')
 plt.ylabel('Factor of Safety')
 
-#%%
-# #Set FS to 1 and solve for length where w = l*0.5
-
-# y = 4*(Crl + (K0*0.5*z*(ys-yw*m**2)*np.tan(phi)))*(np.cos(hollow_rad)*z)
-# b = (Kp-Ka)*0.5*(z**2)*(ys-yw*(m**2))
-# x = (Crb + ((np.cos(hollow_rad))**2)*z*(ys-yw*m)*np.tan(phi))
-# a = (np.sin(hollow_rad))*(np.cos(hollow_rad))*z*ys
-
-# length = (x+b)/(a-x)
-
-
-# # plot
-# plt.figure()
-# plt.scatter(hollow_ang, length)
-# plt.xlabel('Hollow Angle')
-# plt.ylabel('Length (m)')
 
 #%% Area
 
@@ -140,19 +124,6 @@ plt.grid(color='gray')
 plt.xlabel('Depth (m)')
 plt.ylabel('Crit Area (m2)')
 plt.yscale('log')
-
-
-
-#%% Area
-# d_s = (np.deg2rad(38-36))
-
-# # Define terms of equation
-# A = (2*Crl*z + K0*(z**2)*(ys-yw*(m**2))*np.tan(phi))*np.cos(hollow_rad)*(l/w)**0.5
-# B = (Kp-Ka)*0.5*(z**2)*(ys-yw*(m**2))*(np.cos(d_s) - np.sin(d_s)*np.tan(phi))*(l/w)**(-0.5)
-# C = (np.sin(hollow_rad)*np.cos(hollow_rad)*z*ys) - Crb - (((np.cos(hollow_rad))**2)*z*(ys-yw*m)*np.tan(phi))
-
-# #Find critical area
-# Ac = ((A + B)/C)**2
 
 
 
