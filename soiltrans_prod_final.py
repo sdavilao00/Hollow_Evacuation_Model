@@ -244,7 +244,7 @@ def run_simulation(in_tiff, K, Sc, dt, target_time):
         z_old = z_new.copy()
 
         # Output results every 1000 years
-        if time % 1000 == 0:
+        if time % 50 == 0:
             print(f"Results at {time} years:")
             print(f"Total Soil Depth: {total_soil_depth}")
             print(f"Elevation: {z_new}")
@@ -306,12 +306,42 @@ ps = 1000   # Ratio of soil loss (example value)
 P0 = 0.0003  # Initial soil production rate (example value, e.g., kg/m²/year)
 h0 = 0.4   # Depth constant related to soil production (example value, e.g., meters)
 dt = 50
-target_time = 3000
+target_time = 1000
 
 run_simulation(INPUT_TIFF, K, Sc, dt, target_time)
 
 # soil_production_vs_transport_array = run_simulation(INPUT_TIFF, K, Sc, dt, target_time)
 
+#%%
+
+import os
+import glob
+
+# Define input folder and output folder
+input_folder = "C:/Users/sdavilao/OneDrive - University Of Oregon/Documents/3D_test/ExampleDEM/simulation_results/GeoTIFFS"
+output_folder = "C:/Users/sdavilao/OneDrive - University Of Oregon/Documents/3D_test/ExampleDEM/simulation_results/GeoTIFFS/reprojected/"
+
+# Ensure output folder exists
+os.makedirs(output_folder, exist_ok=True)
+
+# Define target CRS
+target_crs = "EPSG:32610"
+
+# Get all .tif files in the input folder
+tif_files = glob.glob(os.path.join(input_folder, "*.tif"))
+
+# Loop through each file and reproject
+for input_tif in tif_files:
+    # Define output file path
+    filename = os.path.basename(input_tif)  # Get the file name
+    output_tif = os.path.join(output_folder, filename)  # Save in output folder
+
+    # Perform the reprojection
+    gdal.Warp(output_tif, input_tif, dstSRS=target_crs, resampleAlg=gdal.GRA_NearestNeighbour)
+
+    print(f"Reprojected: {filename} -> {output_tif}")
+
+print("Batch reprojection complete!")
 
 
 
