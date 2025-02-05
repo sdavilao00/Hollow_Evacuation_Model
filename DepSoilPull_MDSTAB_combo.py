@@ -15,111 +15,107 @@ import glob
 import os
 import re
 import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+
+#%%
 
 # Define file paths
-shapefile_path = "C:/Users/sdavilao/OneDrive - University Of Oregon/Desktop/QGIS/HC/04282023/MDSTAB_hollow.shp"  # Shapefile containing the point
-dem_path = "C:/Users/sdavilao/OneDrive - University Of Oregon/Desktop/QGIS/HC/04282023/avg9.tif"  # DEM raster
+shapefile_path = "C:/Users/sdavilao/OneDrive - University Of Oregon/Desktop/QGIS/HC/04282023/MDSTAB_hollow.shp"
+dem_path = "C:/Users/sdavilao/OneDrive - University Of Oregon/Desktop/QGIS/HC/04282023/avg9.tif"
 slope_path = "C:/Users/sdavilao/OneDrive - University Of Oregon/Desktop/QGIS/HC/04282023/slope.tif"
 
-# Define soil depth raster pattern
+# Define soil depth raster directory and naming pattern
 soil_depth_dir = "C:/Users/sdavilao/OneDrive - University Of Oregon/Documents/3D_test/ExampleDEM/simulation_results/GeoTIFFS/reprojected/"
-basename = "MDSTAB_Test"  # Adjust this if necessary
+basename = "MDSTAB_Test"
 soil_depth_pattern = os.path.join(soil_depth_dir, f"{basename}_total_soil_depth_*yrs.tif")
 
 # Load the point shapefile
 gdf = gpd.read_file(shapefile_path)
 
-# Extract the first point (modify if multiple points exist)
-# point_geom = gdf.geometry.iloc[0]  # Assuming a single point
-
-# Create a buffer around the point (e.g., 100m radius)
-buffer_distance = 10  # Set buffer distance in meters
-# buffer_geom = point_geom.buffer(buffer_distance)
-
 # Ensure the shapefile and raster CRS match
 with rasterio.open(dem_path) as dem:
-    dem_crs = dem.crs  # Get CRS from DEM
+    dem_crs = dem.crs  
     if gdf.crs != dem_crs:
-        gdf = gdf.to_crs(dem_crs)  # Reproject vector data
+        gdf = gdf.to_crs(dem_crs)  
 
-### STEP 1: PROCESS MULTIPLE SOIL DEPTH FILES AND STORE RESULTS IN ARRAY ###
-soil_depth_files = sorted(glob.glob(soil_depth_pattern))  
+# Get all soil depth .tif files and sort them by year
+soil_depth_files = sorted(glob.glob(soil_depth_pattern))
 
+# Define buffer sizes to test
+buffer_sizes = [2, 4, 6, 8]
+
+# Create a list to store results
 results = []
 
 # Loop through each point in the shapefile
 for idx, point_geom in enumerate(gdf.geometry):
-    # Create a buffer around the point
-    buffer_geom = point_geom.buffer(buffer_distance)
-    buffer_json = [buffer_geom.__geo_interface__]
+    for buffer_distance in buffer_sizes:
+        # Create a buffer around the point
+        buffer_geom = point_geom.buffer(buffer_distance)
+        buffer_json = [buffer_geom.__geo_interface__]
 
-    ### Step 1: Compute Slope for the Point ###
-    try:
-        with rasterio.open(slope_path) as slope_raster:
-            slope_image, _ = mask(slope_raster, buffer_json, crop=True)
-            slope_image = slope_image[0]  # Extract slope band
-            valid_slope_values = slope_image[slope_image != slope_raster.nodata]
-            avg_slope = np.mean(valid_slope_values) if valid_slope_values.size > 0 else np.nan
-    except Exception:
-        print(f"Slope raster not found. Computing slope from DEM for Point {idx}...")
-        slope_output_path = f"temp_slope_{idx}.tif"
-        gdal.DEMProcessing(slope_output_path, dem_path, "slope", computeEdges=True)
-        
-        with rasterio.open(slope_output_path) as slope_raster:
-            slope_image, _ = mask(slope_raster, buffer_json, crop=True)
-            slope_image = slope_image[0]  
-            valid_slope_values = slope_image[slope_image != slope_raster.nodata]
-            avg_slope = np.mean(valid_slope_values) if valid_slope_values.size > 0 else np.nan
+        ### Step 1: Compute Slope within the Buffer ###
+        try:
+            with rasterio.open(slope_path) as slope_raster:
+                slope_image, _ = mask(slope_raster, buffer_json, crop=True)
+                slope_image = slope_image[0]  # Extract slope band
+                valid_slope_values = slope_image[slope_image != slope_raster.nodata]
+                avg_slope = np.mean(valid_slope_values) if valid_slope_values.size > 0 else np.nan
+        except Exception:
+            print(f"Slope raster not found for Point {idx} and Buffer {buffer_distance}m.")
 
-    ### Step 2: Extract Soil Depth for Each Year ###
-    for soil_depth_tif in soil_depth_files:
-        # Extract year from filename using regex
-        match = re.search(r'_(\d+)yrs\.tif$', soil_depth_tif)
-        if match:
-            year = int(match.group(1))  
-        else:
-            continue  
+        ### Step 2: Extract Soil Depth for Each Year ###
+        for soil_depth_tif in soil_depth_files:
+            # Extract year from filename using regex
+            match = re.search(r'_(\d+)yrs\.tif$', soil_depth_tif)
+            if match:
+                year = int(match.group(1))  
+            else:
+                continue  
 
-        with rasterio.open(soil_depth_tif) as soil_depth_raster:
-            soil_depth_image, _ = mask(soil_depth_raster, buffer_json, crop=True)
-            soil_depth_image = soil_depth_image[0]  
-            valid_soil_depth_values = soil_depth_image[soil_depth_image != soil_depth_raster.nodata]
-            avg_soil_depth = np.mean(valid_soil_depth_values) if valid_soil_depth_values.size > 0 else np.nan
+            with rasterio.open(soil_depth_tif) as soil_depth_raster:
+                soil_depth_image, _ = mask(soil_depth_raster, buffer_json, crop=True)
+                soil_depth_image = soil_depth_image[0]  
+                valid_soil_depth_values = soil_depth_image[soil_depth_image != soil_depth_raster.nodata]
+                avg_soil_depth = np.mean(valid_soil_depth_values) if valid_soil_depth_values.size > 0 else np.nan
 
-        results.append((idx, year, avg_slope, avg_soil_depth))
+            # Store results in a dictionary
+            results.append({
+                'Point_ID': idx,
+                'Year': year,
+                'Buffer_Size': buffer_distance,
+                'Avg_Slope': avg_slope,  # Now slope is calculated with the buffer
+                'Avg_Soil_Depth': avg_soil_depth
+            })
 
-# Convert to DataFrame
-df = pd.DataFrame(results, columns=['Point_ID', 'Year', 'Avg_Slope', 'Avg_Soil_Depth'])
+# Convert results to Pandas DataFrame
+df = pd.DataFrame(results)
 
-# Sort DataFrame by 'Year' in ascending order
-df = df.sort_values(by=['Point_ID', 'Year']).reset_index(drop=True)
+# Sort DataFrame by 'Point_ID', 'Year', and 'Buffer_Size'
+df = df.sort_values(by=['Point_ID', 'Year', 'Buffer_Size']).reset_index(drop=True)
 
-    
+# Print DataFrame for debugging
+print(df)
+
+plt.figure(figsize=(10, 6))
+
+# Loop through each buffer size and plot depth vs. time
+for buffer_size in df['Buffer_Size'].unique():
+    subset = df[df['Buffer_Size'] == buffer_size]  # Filter data for buffer size
+    avg_depths = subset.groupby("Year")["Avg_Soil_Depth"].mean()  # Get avg depth per year
+
+    plt.plot(avg_depths.index, avg_depths.values, marker='o', linestyle='-', label=f'Buffer {buffer_size}m')
+
+# Labels and title
+plt.xlabel("Year")
+plt.ylabel("Average Soil Depth (meters)")
+plt.title("Soil Depth Over Time for Different Buffer Sizes")
+plt.legend(title="Buffer Size (m)")
+plt.grid(True, linestyle="--", linewidth=0.5)
+
 #%%
-
-# -*- coding: utf-8 -*-
-"""
-Created on Fri Sep 20 11:16:26 2024
-
-@author: sdavilao
-
-This code can be used for calculating hollow dimensions along with 
-Factor of Safety for a combination of parameters for hollows in the 
-Oregon Coast Range. 
-
-This work is based on the three-dimensional slope stability model derived by Milledge et al. 2014. 
-    
-    
-"""
-#%% Import Packages
-
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-#%% Variables
-
 # Knon variables
 Klin = 0.004 # m2/yr # linear sediment transport coefficient
 Sc = 1.25 # unitless # critical slope
@@ -137,7 +133,7 @@ z = df.Avg_Soil_Depth
 # Slope stability variables
 m = 1 # m # saturation ration (h/z)
 l = 10 # m # length
-w = 10 # m # width
+w = 6.7 # m # width
 C0 = 6400 # Pa
 j = 1.5
 
@@ -201,75 +197,65 @@ FS = (Frb + Frc + Frddu)/Fdc
 df['FS'] = FS
 
 
-#%% Visualize
 
 plt.figure()
 y_line_value = 1
-# Loop through each unique Point_ID
-for point_id in df['Point_ID'].unique():
-    subset = df[df['Point_ID'] == point_id]  # Filter data for the current Point_ID
-    avg_slope = subset['Avg_Slope'].iloc[0]  # Extract the avg slope for this point
-    plt.plot(subset['Avg_Soil_Depth'], subset['FS'], marker='o', linestyle='-', label=f'Slope: {avg_slope:.2f}')
+# Loop through each buffer size and plot depth vs. time
+for buffer_size in df['Buffer_Size'].unique():
+    subset = df[df['Buffer_Size'] == buffer_size]  # Filter data for buffer size
+    fs = subset.groupby("Year")["FS"].mean()  # Get avg depth per year
 
-plt.xlabel('Depth')
-plt.ylabel('Factor of Safety')
-plt.legend()  # Adjust legend position
+    plt.plot(fs.index, fs.values, marker='o', linestyle='-', label=f'Buffer {buffer_size}m')
+
+# Labels and title
+plt.xlabel("Year")
+plt.ylabel("Factor of Safety")
+plt.title("Soil Depth Over Time for Different Buffer Sizes")
+plt.legend(title="Buffer Size (m)")
+plt.grid(True, linestyle="--", linewidth=0.5)
 plt.axhline(y=y_line_value, color='r', linestyle='--', linewidth=1.5, label=f"Threshold: {y_line_value}m")
 
-##
-plt.figure()
-# Loop through each unique Point_ID
-for point_id in df['Point_ID'].unique():
-    subset = df[df['Point_ID'] == point_id]  # Filter data for the current Point_ID
-    plt.plot(subset['Year'], subset['FS'], marker='o', linestyle='-', label=f'Point {point_id}')
-plt.xlabel('Time')
-plt.ylabel('Factor of Safety')
-#plt.xscale('log')
-# Add a horizontal line at the specified y-value
-plt.axhline(y=y_line_value, color='r', linestyle='--', linewidth=1.5, label=f"Threshold: {y_line_value}m")
-#%% Area
 
-# Define terms of equation
-A = (2*Crl*z + K0*(z**2)*(ys-yw*(m**2))*np.tan(phi))*np.cos(hollow_rad)*(l/w)**0.5
-B = (Kp-Ka)*0.5*(z**2)*(ys-yw*(m**2))*(l/w)**(-0.5)
-C = (np.sin(hollow_rad)*np.cos(hollow_rad)*z*ys) - Crb - (((np.cos(hollow_rad))**2)*z*(ys-yw*m)*np.tan(phi))
 
-#Find critical area
-Ac = ((A + B)/C)**2
 
-df['critical_area'] = Ac
 
-#Plot
-plt.figure()
-# Loop through each unique Point_ID
-for point_id in df['Point_ID'].unique():
-    subset = df[df['Point_ID'] == point_id]  # Filter data for the current Point_ID
-    plt.plot(subset['Avg_Soil_Depth'], subset['critical_area'], marker='o', linestyle='-', label=f'Point {point_id}')
-plt.xlabel('Time')
-plt.grid(color='gray')
-plt.xlabel('Depth (m)')
-plt.ylabel('Crit Area (m2)')
-#plt.yscale('log')
 
-#Plot
-plt.figure()
-# Loop through each unique Point_ID
-for point_id in df['Point_ID'].unique():
-    subset = df[df['Point_ID'] == point_id]  # Filter data for the current Point_ID
-    plt.plot(subset['Year'], subset['critical_area'], marker='o', linestyle='-', label=f'Point {point_id}')
-plt.xlabel('Time')
-plt.grid(color='gray')
-plt.xlabel('Time (yrs)')
-plt.ylabel('Crit Area (m2)')
-#plt.yscale('log')
 
-#%%
 
-#Plot
-plt.figure()
 
-plt.scatter(Ac, FS)
-plt.grid(color='gray')
-plt.ylabel('Factor of Safety')
-plt.xlabel('Crit Area (m2)')
-#plt.yscale('log')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
