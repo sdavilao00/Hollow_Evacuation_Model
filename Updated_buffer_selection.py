@@ -104,7 +104,7 @@ phi = np.deg2rad(41)
 m = 1  
 l = 10  
 w = 6.7  
-C0 = 6400  
+C0 = 15700  
 j = 1.5  
 
 def calculate_fs(row):
@@ -138,39 +138,31 @@ def calculate_fs(row):
 
 df['FS'] = df.apply(calculate_fs, axis=1)
 
-#%% ---------------- DETERMINE OPTIMAL BUFFER SIZE & SAVE EXTRA DATA ----------------
+import pandas as pd
+
+#%% ---------------- SELECT BUFFER THAT FIRST CROSSES FS = 1 ----------------
 optimal_buffers = {}
 
 for point_id in df['Point_ID'].unique():
-    point_data = df[df['Point_ID'] == point_id]
+    point_data = df[df['Point_ID'] == point_id]  # Get data for this Point_ID
 
-    # Step 1: Find the earliest year where FS is closest to 1 for any buffer size
-    valid_data = point_data.copy()
-    valid_data['FS_Diff'] = abs(valid_data['FS'] - 1)  # Compute FS difference from 1
+    # Step 1: Find all instances where FS first crosses or equals 1
+    fs_crossed = point_data[point_data['FS'] <= 1].copy()  # Only FS ≤ 1 events
 
-    # Sort by Year (earliest first) and then by FS closest to 1
-    sorted_data = valid_data.sort_values(by=['Year', 'FS_Diff'])
+    if fs_crossed.empty:
+        print(f"Warning: No FS ≤ 1 data for Point_ID {point_id}. Skipping.")
+        continue  # Skip if FS never crosses 1 for any buffer size
 
-    if sorted_data.empty:
-        print(f"Warning: No valid FS data for Point_ID {point_id}. Skipping.")
-        continue
+    # Step 2: Identify the earliest year where FS crosses or equals 1
+    earliest_fs_cross = fs_crossed.loc[fs_crossed['Year'].idxmin()]  # Select earliest crossing
 
-    best_buffer_row = sorted_data.iloc[0]  # Selects the earliest FS ≈ 1 occurrence
-    optimal_buffer = best_buffer_row['Buffer_Size']  # The best buffer
-
-    # Step 2: Within that optimal buffer, find the year where FS is closest to 1
-    buffer_data = point_data[point_data['Buffer_Size'] == optimal_buffer].copy()
-    buffer_data['FS_Diff'] = abs(buffer_data['FS'] - 1)  # Recalculate FS diff
-
-    best_year_row = buffer_data.loc[buffer_data['FS_Diff'].idxmin()]  # Select year closest to FS = 1
-
-    # Step 3: Extract the corresponding values
+    # Step 3: Extract values from the row where FS first crossed 1
     optimal_buffers[point_id] = {
-        'Optimal_Buffer': optimal_buffer,  # Best buffer size
-        'Year': best_year_row['Year'],  # Year closest to FS = 1 within that buffer
-        'FS': best_year_row['FS'],  # Actual FS value
-        'Avg_Soil_Depth': best_year_row['Avg_Soil_Depth'],  # Corresponding soil depth
-        'Avg_Slope': best_year_row['Avg_Slope']  # Corresponding slope
+        'Optimal_Buffer': earliest_fs_cross['Buffer_Size'],  # Buffer associated with the earliest FS = 1 crossing
+        'Year': earliest_fs_cross['Year'],  # The earliest year FS crosses or equals 1
+        'FS': earliest_fs_cross['FS'],  # Actual FS value at that year
+        'Avg_Soil_Depth': earliest_fs_cross['Avg_Soil_Depth'],  # Corresponding soil depth
+        'Avg_Slope': earliest_fs_cross['Avg_Slope']  # Corresponding slope
     }
 
 # Convert to DataFrame
@@ -178,9 +170,6 @@ df_optimal = pd.DataFrame.from_dict(optimal_buffers, orient='index')
 df_optimal.reset_index(inplace=True)
 df_optimal.rename(columns={'index': 'Point_ID'}, inplace=True)
 
-# Save to CSV file
-output_path = r"C:\Users\sdavilao\OneDrive - University Of Oregon\Desktop\QGIS\HC\04282023\optimal_buffer_results.csv"
-df_optimal.to_csv(output_path, index=False)
 
 # Print Results
 print(df_optimal)
