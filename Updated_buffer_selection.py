@@ -41,7 +41,7 @@ with rasterio.open(dem_path) as dem:
 soil_depth_files = sorted(glob.glob(soil_depth_pattern))
 
 # Define buffer sizes to test
-buffer_sizes = [2, 4, 6, 8]
+buffer_sizes = [2, 4, 6, 7, 8, 10]
 
 # Create a list to store results
 results = []
