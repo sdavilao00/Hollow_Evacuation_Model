@@ -44,7 +44,7 @@ with rasterio.open(dem_path) as dem:
 soil_depth_files = sorted(glob.glob(soil_depth_pattern))
 
 # Define buffer sizes to test
-buffer_sizes = [2, 4, 6, 8]
+buffer_sizes = [2, 4, 6, 7, 8, 10, 12, 14]
 
 # Create a list to store results
 results = []
@@ -134,7 +134,7 @@ z = df.Avg_Soil_Depth
 m = 1 # m # saturation ration (h/z)
 l = 10 # m # length
 w = 6.7 # m # width
-C0 = 6400 # Pa
+C0 = 15700 # Pa
 j = 1.5
 
 #Define side/hollow slope range
