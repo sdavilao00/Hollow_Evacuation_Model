@@ -196,22 +196,36 @@ FS = (Frb + Frc + Frddu)/Fdc
 
 df['FS'] = FS
 
+import matplotlib.pyplot as plt
 
+plt.figure(figsize=(10, 6))  # Set figure size
+y_line_value = 1  # Threshold line at FS = 1
 
-plt.figure()
-y_line_value = 1
-# Loop through each buffer size and plot depth vs. time
-for buffer_size in df['Buffer_Size'].unique():
-    subset = df[df['Buffer_Size'] == buffer_size]  # Filter data for buffer size
-    fs = subset.groupby("Year")["FS"].mean()  # Get avg depth per year
+# Loop through each Point_ID
+for point_id in df['Point_ID'].unique():
+    if point_id != 3:
+        continue
+    point_data = df[df['Point_ID'] == point_id]  # Filter data for this point
 
-    plt.plot(fs.index, fs.values, marker='o', linestyle='-', label=f'Buffer {buffer_size}m')
+    # Loop through each buffer size within this Point_ID
+    for buffer_size in point_data['Buffer_Size'].unique():
+        subset = point_data[point_data['Buffer_Size'] == buffer_size]  # Filter data
+        fs = subset.groupby("Year")["FS"].mean()  # Get avg FS per year
+        
+        # Plot FS vs. Year for this Point_ID and Buffer Size
+        plt.plot(fs.index, fs.values, marker='o', linestyle='-', label=f'Point {point_id}, Buffer {buffer_size}m')
+
+# Add horizontal line at FS = 1
+plt.axhline(y=y_line_value, color='r', linestyle='--', linewidth=1.5, label="FS = 1 Threshold")
 
 # Labels and title
 plt.xlabel("Year")
-plt.ylabel("Factor of Safety")
-plt.title("Soil Depth Over Time for Different Buffer Sizes")
-plt.legend(title="Buffer Size (m)")
+plt.ylabel("Factor of Safety (FS)")
+plt.title("FS Over Time for Different Point IDs & Buffer Sizes")
+plt.legend(title="Point ID & Buffer Size", bbox_to_anchor=(1.05, 1), loc='upper left')  # Move legend outside
 plt.grid(True, linestyle="--", linewidth=0.5)
-plt.axhline(y=y_line_value, color='r', linestyle='--', linewidth=1.5, label=f"Threshold: {y_line_value}m")
+plt.tight_layout()  # Adjust layout to prevent overlap
+
+# Show plot
+plt.show()
 
