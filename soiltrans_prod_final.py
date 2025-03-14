@@ -17,7 +17,7 @@ from landlab.io import read_esri_ascii, write_esri_ascii
 #%%
 # Input GeoTIFF file and directory
 BASE_DIR = os.path.join(os.getcwd(), 'ExampleDEM')
-INPUT_TIFF = 'MDSTAB_Test.tif'
+INPUT_TIFF = 'MDSTAB_SMOOTH.tif'
 
 # Setup output directory
 OUT_DIR = os.path.join(BASE_DIR, 'simulation_results')
