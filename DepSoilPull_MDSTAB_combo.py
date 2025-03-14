@@ -134,7 +134,7 @@ z = df.Avg_Soil_Depth
 m = 1 # m # saturation ration (h/z)
 l = 10 # m # length
 w = 6.7 # m # width
-C0 = 15700 # Pa
+C0 = 6700 # Pa
 j = 1.5
 
 #Define side/hollow slope range
@@ -203,7 +203,7 @@ y_line_value = 1  # Threshold line at FS = 1
 
 # Loop through each Point_ID
 for point_id in df['Point_ID'].unique():
-    if point_id != 3:
+    if point_id != 0:
         continue
     point_data = df[df['Point_ID'] == point_id]  # Filter data for this point
 
@@ -228,4 +228,8 @@ plt.tight_layout()  # Adjust layout to prevent overlap
 
 # Show plot
 plt.show()
+
+#%% buffer analysis
+
+
 

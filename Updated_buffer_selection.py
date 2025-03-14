@@ -16,6 +16,9 @@ import os
 import re
 import pandas as pd
 import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
+from scipy.interpolate import interp1d
 
 #%% ---------------- LOAD & PROCESS DATA ----------------
 # Define file paths
@@ -41,7 +44,7 @@ with rasterio.open(dem_path) as dem:
 soil_depth_files = sorted(glob.glob(soil_depth_pattern))
 
 # Define buffer sizes to test
-buffer_sizes = [2, 4, 6, 8]
+buffer_sizes = [2, 4, 6, 7, 8, 10, 12, 14, 16]
 
 # Create a list to store results
 results = []
@@ -138,67 +141,219 @@ def calculate_fs(row):
 
 df['FS'] = df.apply(calculate_fs, axis=1)
 
-import pandas as pd
-
-import pandas as pd
-
-#%% ---------------- DETERMINE OPTIMAL BUFFER SIZE & SAVE EXTRA DATA ----------------
+#%% ---------------- INTERPOLATE FS TO FIND EXACT FS = 1 YEAR ----------------
 optimal_buffers = {}
 
 for point_id in df['Point_ID'].unique():
-    point_data = df[df['Point_ID'] == point_id]
+    point_data = df[df['Point_ID'] == point_id]  # Get data for this Point_ID
 
-    # Step 1: Find the earliest year where FS is closest to 1 for any buffer size
-    valid_data = point_data.copy()
-    valid_data['FS_Diff'] = abs(valid_data['FS'] - 1)  # Compute FS difference from 1
+    # Step 1: Loop through each buffer size and interpolate FS over time
+    buffer_first_crossings = {}
 
-    # Sort by Year (earliest first) and then by FS closest to 1
-    sorted_data = valid_data.sort_values(by=['Year', 'FS_Diff'])
+    for buffer_size in point_data['Buffer_Size'].unique():
+        buffer_data = point_data[point_data['Buffer_Size'] == buffer_size].sort_values(by='Year')
 
-    if sorted_data.empty:
-        print(f"Warning: No valid FS data for Point_ID {point_id}. Skipping.")
+        # Get Year and FS values as arrays
+        years = buffer_data['Year'].values
+        fs_values = buffer_data['FS'].values
+
+        # Only interpolate if there are at least two points
+        if len(years) < 2:
+            continue
+
+        # Interpolate FS over time
+        fs_interp = interp1d(fs_values, years, kind='linear', bounds_error=False, fill_value='extrapolate')
+
+        # Estimate the exact year where FS = 1
+        estimated_year = fs_interp(1)  # Find year where FS crosses 1
+
+        if not np.isnan(estimated_year) and estimated_year > min(years) and estimated_year < max(years):
+            buffer_first_crossings[buffer_size] = estimated_year
+
+    # Step 2: Find the buffer that reaches FS = 1 the fastest (smallest interpolated year)
+    if not buffer_first_crossings:
+        print(f"Warning: No FS = 1 data for Point_ID {point_id}. Skipping.")
         continue
 
-    best_buffer_row = sorted_data.iloc[0]  # Selects the earliest FS ≈ 1 occurrence
-    optimal_buffer = best_buffer_row['Buffer_Size']  # The best buffer
+    optimal_buffer_size = min(buffer_first_crossings, key=buffer_first_crossings.get)
+    optimal_year = buffer_first_crossings[optimal_buffer_size]
 
-    # Step 2: Within that optimal buffer, find the year where FS is closest to 1
-    buffer_data = point_data[point_data['Buffer_Size'] == optimal_buffer].copy()
-    buffer_data['FS_Diff'] = abs(buffer_data['FS'] - 1)  # Recalculate FS diff
+    # Step 3: Interpolate Soil Depth and Slope at this interpolated year
+    selected_buffer_data = point_data[point_data["Buffer_Size"] == optimal_buffer_size].sort_values(by='Year')
 
-    best_year_row = buffer_data.loc[buffer_data['FS_Diff'].idxmin()]  # Select year closest to FS = 1
+    # Interpolating Soil Depth and Slope using the same approach
+    soil_depth_interp = interp1d(selected_buffer_data['Year'], selected_buffer_data['Avg_Soil_Depth'], kind='linear', bounds_error=False, fill_value='extrapolate')
+    slope_interp = interp1d(selected_buffer_data['Year'], selected_buffer_data['Avg_Slope'], kind='linear', bounds_error=False, fill_value='extrapolate')
 
-    # Step 3: Extract the corresponding values
+    estimated_soil_depth = soil_depth_interp(optimal_year)
+    estimated_slope = slope_interp(optimal_year)
+
+    # Step 4: Store interpolated values
     optimal_buffers[point_id] = {
-        'Optimal_Buffer': optimal_buffer,  # Best buffer size
-        'Year': best_year_row['Year'],  # Year closest to FS = 1 within that buffer
-        'FS': best_year_row['FS'],  # Actual FS value
-        'Avg_Soil_Depth': best_year_row['Avg_Soil_Depth'],  # Corresponding soil depth
-        'Avg_Slope': best_year_row['Avg_Slope']  # Corresponding slope
+        'Optimal_Buffer': optimal_buffer_size,  # Buffer that reached FS = 1 first
+        'Year': optimal_year,  # Interpolated Year where FS = 1
+        'FS': 1.0,  # Exact FS value
+        'Avg_Soil_Depth': estimated_soil_depth,  # Interpolated soil depth
+        'Avg_Slope': estimated_slope  # Interpolated slope
     }
 
 # Convert to DataFrame
-df_optimal = pd.DataFrame.from_dict(optimal_buffers, orient='index')
-df_optimal.reset_index(inplace=True)
-df_optimal.rename(columns={'index': 'Point_ID'}, inplace=True)
+df_optimal_interpolated = pd.DataFrame.from_dict(optimal_buffers, orient='index')
+df_optimal_interpolated.reset_index(inplace=True)
+df_optimal_interpolated.rename(columns={'index': 'Point_ID'}, inplace=True)
 
-# # Save to CSV file
-# output_path = r"C:\Users\sdavilao\OneDrive - University Of Oregon\Desktop\QGIS\HC\04282023\optimal_buffer_results.csv"
-# df_optimal.to_csv(output_path, index=False)
+# Save to CSV file
+output_path = r"C:\Users\sdavilao\OneDrive - University Of Oregon\Desktop\QGIS\HC\04282023\optimal_buffer_results_interpolated.csv"
+df_optimal_interpolated.to_csv(output_path, index=False)
 
 # Print Results
-print(df_optimal)
+print(df_optimal_interpolated)
 
 
 
 
 
+#%%
+
+# Define the target year range for interpolation
+min_year = df["Year"].min()
+max_year = df["Year"].max()
+target_years = np.arange(min_year, max_year + 1, 1)  # Interpolating yearly
+
+# List to store interpolated results
+interpolated_results = []
+
+#%% ---------------- INTERPOLATE FS, SOIL DEPTH, & SLOPE ACROSS ALL YEARS ----------------
+for point_id in df['Point_ID'].unique():
+    point_data = df[df['Point_ID'] == point_id]
+
+    for buffer_size in point_data['Buffer_Size'].unique():
+        buffer_data = point_data[point_data["Buffer_Size"] == buffer_size].sort_values(by='Year')
+
+        # Ensure at least two points exist for interpolation
+        if len(buffer_data) < 2:
+            continue
+
+        # Interpolate FS, Soil Depth, and Slope
+        fs_interp = interp1d(buffer_data["Year"], buffer_data["FS"], kind='linear', bounds_error=False, fill_value='extrapolate')
+        soil_depth_interp = interp1d(buffer_data["Year"], buffer_data["Avg_Soil_Depth"], kind='linear', bounds_error=False, fill_value='extrapolate')
+        slope_interp = interp1d(buffer_data["Year"], buffer_data["Avg_Slope"], kind='linear', bounds_error=False, fill_value='extrapolate')
+
+        # Compute interpolated values for all target years
+        interpolated_fs = fs_interp(target_years)
+        interpolated_soil_depth = soil_depth_interp(target_years)
+        interpolated_slope = slope_interp(target_years)
+
+        # Store results
+        for year, fs, depth, slope in zip(target_years, interpolated_fs, interpolated_soil_depth, interpolated_slope):
+            interpolated_results.append({
+                'Point_ID': point_id,
+                'Buffer_Size': buffer_size,
+                'Year': year,
+                'FS': fs,
+                'Avg_Soil_Depth': depth,
+                'Avg_Slope': slope
+            })
+
+# Convert to DataFrame
+df_interpolated = pd.DataFrame(interpolated_results)
+
+# Save to CSV file
+output_path = r"C:\Users\sdavilao\OneDrive - University Of Oregon\Desktop\QGIS\HC\04282023\interpolated_dataset.csv"
+df_interpolated.to_csv(output_path, index=False)
+
+# Print preview of the interpolated DataFrame
+print(df_interpolated.head())
+
+
+#%% ---------------- EXTRACT FULL FS THROUGH TIME DATASET ----------------
+
+# Select only necessary columns from df_interpolated
+df_fs_through_time = df_interpolated[['Point_ID', 'Buffer_Size', 'Year', 'FS']].copy()
+
+# Save to CSV
+output_path = r"C:\Users\sdavilao\OneDrive - University Of Oregon\Desktop\QGIS\HC\04282023\fs_through_time.csv"
+df_fs_through_time.to_csv(output_path, index=False)
+
+# Print preview
+print(df_fs_through_time.head())
 
 
 
 
+#%% ---------------- EXTRACT FS AT FAILURE YEAR (FROM df_optimal_interpolated) ----------------
+optimal_fs_values = []  # List to store results
+
+for point_id in df_interpolated['Point_ID'].unique():
+    # Get the failure year from df_optimal_interpolated
+    optimal_year_row = df_optimal_interpolated[df_optimal_interpolated["Point_ID"] == point_id]
+
+    if optimal_year_row.empty:
+        continue  # Skip if no optimal year is found
+
+    optimal_year = optimal_year_row["Year"].values[0]  # Extract the correct failure year
+
+    # Get FS values for all buffers at this optimal year
+    point_data = df_interpolated[df_interpolated["Point_ID"] == point_id]
+
+    for buffer_size in point_data["Buffer_Size"].unique():
+        buffer_data = point_data[point_data["Buffer_Size"] == buffer_size].sort_values(by="Year")
+
+        if buffer_data.empty:
+            continue  # Skip if no data for this buffer
+
+        # Check if exact year exists in the dataset
+        exact_year_data = buffer_data[buffer_data["Year"] == optimal_year]
+
+        if not exact_year_data.empty:
+            # Use exact values if they exist
+            best_year_row = exact_year_data.iloc[0]
+            fs_value = best_year_row["FS"]
+        else:
+            # Use linear interpolation if the exact year is missing
+            if len(buffer_data) < 2:
+                continue  # Skip if there's not enough data for interpolation
+
+            fs_value = np.interp(optimal_year, buffer_data["Year"], buffer_data["FS"])
+
+        # Store results
+        optimal_fs_values.append({
+            'Point_ID': point_id,
+            'Buffer_Size': buffer_size,
+            'Year': optimal_year,  # The failure year pulled from df_optimal_interpolated
+            'FS': fs_value
+        })
+
+# Convert to DataFrame
+df_fs_at_optimal_year = pd.DataFrame(optimal_fs_values)
+
+# Save to CSV
+output_path = r"C:\Users\sdavilao\OneDrive - University Of Oregon\Desktop\QGIS\HC\04282023\fs_at_optimal_year.csv"
+df_fs_at_optimal_year.to_csv(output_path, index=False)
+
+# Print Results
+print(df_fs_at_optimal_year.head())
 
 
 
+
+# Choose a specific Point_ID for plotting
+selected_point_id = 2  # Change this to analyze another Point_ID
+
+# Filter dataset for the selected Point_ID
+df_filtered = df_fs_at_optimal_year[df_fs_at_optimal_year["Point_ID"] == selected_point_id]
+
+plt.figure(figsize=(8, 6))
+
+sns.scatterplot(data=df_filtered, x='Buffer_Size', y='FS', marker='o', color='b', s=100, edgecolor='black')
+
+# Labels and Title
+plt.xlabel("Buffer Size (m)")
+plt.ylabel("Factor of Safety (FS)")
+plt.title(f"FS Across Buffer Sizes at Failure Year (From df_optimal_interpolated) for Point_ID {selected_point_id}")
+plt.axhline(y=1, color='r', linestyle='--', linewidth=1.5, label="FS = 1 Threshold")
+plt.legend()
+plt.grid(True, linestyle="--", linewidth=0.5)
+plt.show()
 
 
