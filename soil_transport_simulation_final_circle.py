@@ -17,9 +17,9 @@ from landlab.io import read_esri_ascii, write_esri_ascii
 
 # Paths and constants
 BASE_DIR = os.path.join(os.getcwd(), 'ExampleDEM')
-INPUT_TIFF = 'mdstab_smooth_nowrap.tif'
-POINTS_SHP = os.path.join(BASE_DIR, 'MDSTAB_hollow_points.shp')
-BUFFER_SHP = os.path.join(BASE_DIR, 'MDSTAB_hollow_buffer.shp')
+INPUT_TIFF = 'extended_hollowdem.tif'
+POINTS_SHP = os.path.join(BASE_DIR, 'premerged_hollows.shp')
+BUFFER_SHP = os.path.join(BASE_DIR, 'pre_filtered_buff.shp')
 BUFFER_DISTANCE = 8
 ft2mUS = 1200 / 3937
 ft2mInt = 0.3048
@@ -38,25 +38,23 @@ def create_buffer_from_points(input_points_path, output_buffer_path, buffer_dist
 
     if target_crs:
         if gdf.crs is None:
-            print("⚠️  Shapefile has no CRS. Assigning DEM CRS.")
-            gdf.set_crs(target_crs, inplace=True)
+            print("⚠️  Shapefile has no CRS. Assigning and reprojecting to DEM CRS.")
+            gdf = gdf.set_crs(target_crs, allow_override=True)
+            gdf = gdf.to_crs(target_crs)
         elif gdf.crs != target_crs:
             print(f"Reprojecting shapefile from {gdf.crs} to {target_crs}")
             gdf = gdf.to_crs(target_crs)
     else:
         print("⚠️ No target CRS provided. Assuming points are already aligned with DEM.")
 
-    # Create buffer
     buffer_geom = gdf.buffer(buffer_distance)
     buffered = gdf.copy()
     buffered["geometry"] = buffer_geom
     buffered.set_crs(gdf.crs, inplace=True)
-
-    # Save
     buffered.to_file(output_buffer_path)
     print(f"✅ Buffer created at {output_buffer_path}")
+    print("Buffer bounds:", buffered.total_bounds)
     return output_buffer_path
-
 
 def tiff_to_asc(in_path, out_path):
     with rasterio.open(in_path) as src:
@@ -96,8 +94,23 @@ def apply_buffer_to_soil_depth(grid, shapefile, buffer_distance, dem_path):
     else:
         soil_depth = grid.at_node['soil__depth']
 
-    soil_depth[np.flipud(mask).flatten()] = 0.0
-    print(f"Applied 0m soil depth to buffer zones. Total zero-depth cells: {np.sum(soil_depth == 0)}")
+    soil_depth[np.flipud(mask).flatten()] = 0.01
+    print(f"Applied 0m soil depth to buffer zones. Total zero-depth cells: {np.sum(soil_depth == 0.01)}")
+    # Optional: show buffer mask and soil depth
+    
+    plt.figure(figsize=(6, 5))
+    plt.imshow(mask, cmap='gray', origin='upper')
+    plt.title("Buffer Mask (True = in buffer)")
+    plt.colorbar(label="Mask Value")
+    plt.tight_layout()
+    plt.show()
+
+    plt.figure(figsize=(6, 5))
+    plt.imshow(soil_depth.reshape(grid.shape), cmap='viridis', origin='upper')
+    plt.title("Soil Depth After Masking")
+    plt.colorbar(label="Soil Depth (m)")
+    plt.tight_layout()
+    plt.show()
     return grid
 
     # Optional: show mask and depth
@@ -133,14 +146,14 @@ def init_simulation(asc_file, K, Sc, XYZunit=None, shapefile=None, buffer_distan
     else:
         raise RuntimeError("Unsupported unit type for K conversion.")
 
-    TNLD = TaylorNonLinearDiffuser(grid, linear_diffusivity=Kc, slope_crit=Sc, dynamic_dt=True, nterms=2, if_unstable="pass")
+    TNLD = TaylorNonLinearDiffuser(grid, linear_diffusivity=Kc, slope_crit=Sc, dynamic_dt=True, nterms=1, if_unstable="pass")
     return grid, TNLD
 
-def plot_change(data, title, basefilename, time, K, grid_shape):
+def plot_change(data, title, basefilename, time, K, grid_shape,vmin=None, vmax=None, cmap=None):
     if data.ndim == 1:
         data = data.reshape(grid_shape)
     plt.figure(figsize=(6, 5.25))
-    plt.imshow(np.flipud(data), cmap='viridis')
+    plt.imshow(np.flipud(data), cmap=cmap, interpolation='nearest', vmin=vmin, vmax=vmax)
     plt.colorbar(label='Value')
     plt.title(f"{title} at {time} yrs (K = {K})")
     plt.xlabel("X")
@@ -200,7 +213,7 @@ def run_simulation(in_tiff, K, Sc, dt, target_time, point_shapefile):
         z_new = grid.at_node['topographic__elevation']
         elevation_change = z_new - z_old
 
-        nonzero_soil_mask = initial_soil_depth > 0
+        nonzero_soil_mask = initial_soil_depth > 0.01
         erosion_exceeds = (np.abs(elevation_change) > initial_soil_depth) & nonzero_soil_mask
         if np.any(erosion_exceeds):
             z_new[erosion_exceeds] = z_old[erosion_exceeds] - total_soil_depth[erosion_exceeds]
@@ -213,7 +226,7 @@ def run_simulation(in_tiff, K, Sc, dt, target_time, point_shapefile):
         grid.at_node['soil__depth'] = total_soil_depth
         z_old = z_new.copy()
 
-        if time % 100 == 0:
+        if time % 50 == 0:
             save_as_tiff(elevation_change, os.path.join(OUT_DIRtiff, f"{basefilename}_change_in_elevation_{time}yrs.tif"), meta, grid.shape)
             save_as_tiff(change_in_soil_depth, os.path.join(OUT_DIRtiff, f"{basefilename}_change_in_soil_depth_{time}yrs.tif"), meta, grid.shape)
             save_as_tiff(total_soil_depth, os.path.join(OUT_DIRtiff, f"{basefilename}_total_soil_depth_{time}yrs.tif"), meta, grid.shape)
@@ -222,12 +235,13 @@ def run_simulation(in_tiff, K, Sc, dt, target_time, point_shapefile):
             asc_to_tiff(asc_path, tiff_elevation_path, meta)
 
             grid_shape = grid.shape
-            plot_change(elevation_change, "Change in Elevation", basefilename, time, K, grid_shape)
-            plot_change(change_in_soil_depth, "Change in Soil Depth", basefilename, time, K, grid_shape)
-            plot_change(total_soil_depth, "Total Soil Depth", basefilename, time, K, grid_shape)
-            plot_change(production_rate, "Soil Produced", basefilename, time, K, grid_shape)
+            plot_change(elevation_change, "Change in Elevation", basefilename, time, K, grid_shape, vmin=-1, vmax=1, cmap='coolwarm')
+            plot_change(change_in_soil_depth, "Change in Soil Depth", basefilename, time, K, grid_shape, vmin=-1, vmax=1, cmap='RdYlBu')
+            plot_change(total_soil_depth, "Total Soil Depth", basefilename, time, K, grid_shape, vmin=0, vmax=5, cmap='viridis')
+            plot_change(production_rate, "Soil Produced", basefilename, time, K, grid_shape, vmin=0, vmax=0.01, cmap='plasma')
 
-        if time % 1000 == 0:
+
+        if time % 50 == 0:
             asc_path = plot_save(grid, z_new, basefilename, time, K, mean_res, XYZunit)
             tiff_path = os.path.join(OUT_DIRtiff, f"{basefilename}_{time}yrs_K{K}.tif")
             asc_to_tiff(asc_path, tiff_path, meta)
@@ -244,8 +258,33 @@ pr = 2000   # Ratio of production (example value)
 ps = 1000   # Ratio of soil loss (example value)
 P0 = 0.0003  # Initial soil production rate (example value, e.g., kg/m²/year)
 h0 = 0.5   # Depth constant related to soil production (example value, e.g., meters)
-dt = 50
-target_time = 1500
+dt = 10
+target_time = 150
 
 shapefile_path = os.path.join(BASE_DIR, 'MDSTAB_hollow_buff.shp')
 run_simulation(INPUT_TIFF, K, Sc, dt, target_time, POINTS_SHP)
+
+#%%
+dem_path = os.path.join(BASE_DIR, INPUT_TIFF)
+buffer_path = os.path.join(BASE_DIR, "help.shp")  # or whatever your actual buffer file is
+
+import rasterio
+import geopandas as gpd
+from shapely.geometry import box
+from shapely.ops import unary_union
+
+# DEM info
+with rasterio.open(dem_path) as src:
+    print("DEM bounds:", src.bounds)
+    print("DEM CRS:", src.crs)
+    grid_extent = box(*src.bounds)
+
+# Buffer info
+gdf = gpd.read_file(buffer_path)
+print("Buffer bounds:", gdf.total_bounds)
+print("Buffer CRS:", gdf.crs)
+print("Geometries valid?", gdf.geometry.is_valid.all())
+
+# Check overlap
+buffer_extent = unary_union(gdf.geometry)
+print("Do buffer and DEM intersect?", buffer_extent.intersects(grid_extent))
