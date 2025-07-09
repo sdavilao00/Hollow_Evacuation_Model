@@ -32,14 +32,14 @@ g = 9.81  # m/s2 # force of gravity
 yw = g*pw
 ys = g*ps
 phi = np.deg2rad(41)  # converts phi to radians ## set to 42 right now
-z = np.arange(0,6,0.1)
-#z = 2.5
+# z = np.arange(0,6,0.1)
+z = 1.03
 
 # Slope stability variables
 m = 1 # m # saturation ration (h/z)
 l = 10 # m # length
-w = 10 # m # width
-C0 = 22000 # Pa
+w = 6.7 # m # width
+C0 = 1920 # Pa
 j = 1.5
 
 #Define side/hollow slope range
@@ -47,7 +47,7 @@ j = 1.5
 # slope_rad = np.deg2rad(slope_ang) # Side slope in radians
 # hollow_rad = (np.arctan((0.8*(np.tan(np.deg2rad(slope_ang)))))) # Hollow slope in radians
 # hollow_ang = np.rad2deg(np.arctan((0.8*(np.tan(np.deg2rad(slope_ang)))))) # Hollow slope in degrees
-hollow_rad = np.deg2rad(36)
+hollow_rad = np.deg2rad(28)
 
 
 #Cohesion variables

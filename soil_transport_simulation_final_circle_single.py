@@ -1,5 +1,12 @@
 # -*- coding: utf-8 -*-
 """
+Created on Wed May  7 16:28:14 2025
+
+@author: sdavilao
+"""
+
+# -*- coding: utf-8 -*-
+"""
 Complete soil transport simulation with CRS-aware buffer masking and plotting.
 """
 
@@ -20,15 +27,15 @@ import re
 # Paths and constants
 BASE_DIR = os.path.join(os.getcwd())
 # Get all TIF files with the extX pattern
-tif_files = sorted(glob.glob(os.path.join(BASE_DIR, 'ext*.tif')))
-# INPUT_TIFF = 'ext1.tif'
-# POINTS_SHP = os.path.join(BASE_DIR, 'ext1_1.shp')
-# BUFFER_SHP = os.path.join(BASE_DIR, 'ext1_buff.shp')
+#tif_files = sorted(glob.glob(os.path.join(BASE_DIR, 'ext*.tif')))
+INPUT_TIFF = 'ext19.tif'
+POINTS_SHP = os.path.join(BASE_DIR, 'ext19_1.shp')
+BUFFER_SHP = os.path.join(BASE_DIR, 'ext19_buff.shp')
 BUFFER_DISTANCE = 21
 ft2mUS = 1200 / 3937
 ft2mInt = 0.3048
 
-OUT_DIR = os.path.join(BASE_DIR, 'simulation_results')
+OUT_DIR = os.path.join(BASE_DIR, 'simulation_results\\new')
 OUT_DIRpng = os.path.join(OUT_DIR, 'PNGs')
 OUT_DIRtiff = os.path.join(OUT_DIR, 'GeoTIFFs')
 OUT_DIRasc = os.path.join(OUT_DIR, 'ASCs')
@@ -199,7 +206,7 @@ def run_simulation(in_tiff, K, Sc, dt, target_time, point_shapefile):
         print("DEM bounds:", src.bounds)
         print("DEM CRS:", src.crs)
         print("DEM resolution:", src.res)
-        buffer_shapefile = create_buffer_from_points(point_shapefile, buffer_shp, BUFFER_DISTANCE, src.crs)
+        buffer_shapefile = create_buffer_from_points(point_shapefile, BUFFER_SHP, BUFFER_DISTANCE, src.crs)
 
     basefilename = os.path.splitext(in_tiff)[0]
     in_asc = os.path.join(BASE_DIR, f"{basefilename}.asc")
@@ -240,7 +247,7 @@ def run_simulation(in_tiff, K, Sc, dt, target_time, point_shapefile):
         grid.at_node['soil__depth'] = total_soil_depth
         z_old = z_new.copy()
 
-        if time % 7500 == 0:
+        if time % 100000 == 0:
             #save_as_tiff(elevation_change, os.path.join(OUT_DIRtiff, f"{basefilename}_change_in_elevation_{time}yrs.tif"), meta, grid.shape)
             #save_as_tiff(change_in_soil_depth, os.path.join(OUT_DIRtiff, f"{basefilename}_change_in_soil_depth_{time}yrs.tif"), meta, grid.shape)
             save_as_tiff(total_soil_depth, os.path.join(OUT_DIRtiff, f"{basefilename}_total_soil_depth_{time}yrs.tif"), meta, grid.shape)
@@ -255,7 +262,7 @@ def run_simulation(in_tiff, K, Sc, dt, target_time, point_shapefile):
             #plot_change(production_rate, "Soil Produced", basefilename, time, K, grid_shape, vmin=0, vmax=0.01, cmap='plasma')
 
 
-        if time % 7500 == 0:
+        if time % 100000 == 0:
             asc_path = plot_save(grid, z_new, basefilename, time, K, mean_res, XYZunit)
             tiff_path = os.path.join(OUT_DIRtiff, f"{basefilename}_{time}yrs_K{K}.tif")
             asc_to_tiff(asc_path, tiff_path, meta)
@@ -273,19 +280,10 @@ ps = 1600   # Ratio of soil loss (example value)
 P0 = 0.0003  # Initial soil production rate (example value, e.g., kg/m²/year)
 h0 = 0.5   # Depth constant related to soil production (example value, e.g., meters)
 dt = 50
-target_time = 100000
+target_time = 1000000
 
 
-# Loop through each DEM
-for tif_path in tif_files:
-    base = os.path.splitext(os.path.basename(tif_path))[0]  # e.g., "ext1"
-    matching_shp = os.path.join(BASE_DIR, f"{base}_1.shp")
-    buffer_shp = os.path.join(BASE_DIR, f"{base}_buff.shp")
-
-    if not os.path.exists(matching_shp):
-        print(f"⚠️ Missing shapefile for {base}, skipping...")
-        continue
-    run_simulation(base + '.tif', K, Sc, dt, target_time, matching_shp)
+run_simulation(INPUT_TIFF, K, Sc, dt, target_time,POINTS_SHP)
 
 #%%
 # import glob

@@ -18,8 +18,8 @@ from landlab.io import read_esri_ascii, write_esri_ascii
 import cProfile
 #%%
 # Input geotiff file and directory
-BASE_DIR = os.path.join(os.getcwd(), 'ExampleDEM')
-INPUT_TIFF = 'hc_clip.tif'
+BASE_DIR = os.path.join(os.getcwd())
+INPUT_TIFF = 'ext4.tif'
 
 # Setup output directory
 OUT_DIR = os.path.join(BASE_DIR, 'simulation_results')
@@ -139,8 +139,8 @@ def run_simulation(in_tiff, K, Sc, dt, target_time):
 # Example run parameters
 K = 0.005  # Diffusion coefficient
 Sc = 1.25  # Critical slope gradient
-dt = 1000  # Time step (years)
-total_time = 15000  # Total simulation time (years)
+dt = 50  # Time step (years)
+total_time = 150  # Total simulation time (years)
 
 run_simulation(INPUT_TIFF, K, Sc, dt, total_time)
 #%%
