@@ -23,14 +23,14 @@ from rasterstats import zonal_stats
 
 #%% ---------------- LOAD & PROCESS DATA ----------------
 # Define file paths
-shapefile_path = r"C:\Users\sdavilao\Documents\newcodesoil\reproj_shp\ext19_32610.shp"
+shapefile_path = r"C:\Users\sdavilao\Documents\newcodesoil\reproj_shp\ext26_32610.shp"
 dem_path = r"C:\Users\sdavilao\Documents\newcodesoil\dem_smooth_m_warp.tif"
 slope_path = r"C:\Users\sdavilao\Documents\newcodesoil\slope_smooth_m_warp.tif"
-downslope_lines =r"C:\Users\sdavilao\Documents\newcodesoil\polylines\ext19_lines.shp" 
+downslope_lines =r"C:\Users\sdavilao\Documents\newcodesoil\polylines\ext26_lines.shp" 
 
 # Define soil depth raster directory and naming pattern
-soil_depth_dir = r"C:\Users\sdavilao\Documents\newcodesoil\simulation_results\GeoTIFFs\reproj_tif"
-basename = "ext19"
+soil_depth_dir = r"C:\Users\sdavilao\Documents\newcodesoil\simulation_results\new\GeoTIFFs\reproj_tif"
+basename = "ext26"
 soil_depth_pattern = os.path.join(soil_depth_dir, f"{basename}_total_soil_depth_*yrs_32610.tif")
 
 # Load the point shapefile
@@ -41,6 +41,13 @@ line_gdf = line_gdf.to_crs(gdf.crs)  # Ensure same CRS
 
 if 'id' in line_gdf.columns:
     line_gdf = line_gdf.rename(columns={'id': 'Point_ID'})
+    
+with rasterio.open(dem_path) as dem:
+    dem_crs = dem.crs
+    if gdf.crs != dem_crs:
+        gdf = gdf.to_crs(dem_crs)
+    if line_gdf.crs != dem_crs:
+        line_gdf = line_gdf.to_crs(dem_crs)
 
 
 # Rename 'id' column to 'Point_ID' if it exists
@@ -57,10 +64,53 @@ with rasterio.open(dem_path) as dem:
 soil_depth_files = sorted(glob.glob(soil_depth_pattern))
 
 # Define buffer sizes to test
-buffer_sizes = [2, 4, 5, 6, 7, 8] ##this should be bounded??
+buffer_sizes = [3, 4, 5, 6, 7, 8, 9] ##this should be bounded??
 
 # Create a list to store results
 results = []
+
+import matplotlib.pyplot as plt
+from rasterio.plot import show
+import matplotlib.patches as mpatches
+
+# Pick a soil depth raster to display (e.g., final year)
+soil_depth_map = [f for f in soil_depth_files if '100yrs' in f or '200yrs' in f]
+if len(soil_depth_map) == 0:
+    print("No final-year soil depth raster found for visualization.")
+else:
+    soil_depth_path = soil_depth_map[0]  # Use first match
+
+    # Create buffer geometries
+    buffer_geoms = []
+    for _, row in gdf.iterrows():
+        point_id = row['Point_ID']
+        point_geom = row.geometry
+        for buffer_distance in buffer_sizes:
+            buffer = point_geom.buffer(buffer_distance)
+            buffer_geoms.append({'geometry': buffer, 'Point_ID': point_id, 'Buffer_Size': buffer_distance})
+
+    buffer_gdf = gpd.GeoDataFrame(buffer_geoms, crs=gdf.crs)
+
+    # Plot raster and buffers
+    with rasterio.open(soil_depth_path) as src:
+        fig, ax = plt.subplots(figsize=(10, 10))
+
+        # Plot the soil depth raster
+        show(src, ax=ax, cmap='terrain', title='Soil Depth and Buffer Zones')
+
+        # Overlay buffers (colored by buffer size)
+        buffer_gdf.plot(ax=ax, column='Buffer_Size', cmap='viridis', alpha=0.3, legend=True)
+
+        # Plot point centers
+        gdf.plot(ax=ax, color='black', markersize=5)
+
+        # Add Point_ID labels
+        for x, y, pid in zip(gdf.geometry.x, gdf.geometry.y, gdf['Point_ID']):
+            ax.text(x, y, str(pid), fontsize=7, ha='center', va='center')
+
+        ax.set_title("Buffer Radii (m) Overlaid on Soil Depth")
+        plt.tight_layout()
+        plt.show()
 
 point_slope_dict = {}
 point_slope_count = {}
@@ -104,7 +154,7 @@ for _, row in gdf.iterrows():
                 continue
 
             try:
-                print(f"🔎 Opening soil raster: {os.path.basename(soil_depth_tif)}")
+                print(f"Opening soil raster: {os.path.basename(soil_depth_tif)}")
                 with rasterio.open(soil_depth_tif) as soil_depth_raster:
                     soil_depth_image, _ = mask(soil_depth_raster, buffer_json, crop=True)
                     soil_depth_image = soil_depth_image[0]
@@ -119,7 +169,7 @@ for _, row in gdf.iterrows():
                     print(f"    → Valid values count: {valid_soil_depth_values.size}")
 
                     if valid_soil_depth_values.size == 0:
-                        print(f"⚠️ No valid soil depth at Year {year}, Point {point_id}, Buffer {buffer_distance}")
+                        print(f"No valid soil depth at Year {year}, Point {point_id}, Buffer {buffer_distance}")
                         avg_soil_depth = np.nan
                     else:
                         avg_soil_depth = np.mean(valid_soil_depth_values)
@@ -138,17 +188,17 @@ for _, row in gdf.iterrows():
                 'Avg_Slope': avg_slope,
                 'Avg_Soil_Depth': avg_soil_depth
             })
-            print(f"✅ Stored: Point {point_id}, Year {year}, Buffer {buffer_distance}")
+            print(f"Stored: Point {point_id}, Year {year}, Buffer {buffer_distance}")
 
 # Final reporting and sorting
-print(f"\n🔍 Total results collected: {len(results)}")
+print(f"\n Total results collected: {len(results)}")
 df = pd.DataFrame(results)
 
 if not df.empty and 'Point_ID' in df.columns:
     df = df.sort_values(by=['Point_ID', 'Year', 'Buffer_Size']).reset_index(drop=True)
 else:
-    print("⚠️ No data to sort — check for skipped buffers or missing raster overlap.")
-#%% ---------------- CALCULATE FACTOR OF SAFETY ----------------
+    print("No data to sort — check for skipped buffers or missing raster overlap.")
+#%% ---------------- CALCULATE FACTOR OF SAFETY and RI ----------------
 # Constants 
 Sc = 1.25  
 pw = 1000  
@@ -157,36 +207,29 @@ g = 9.81
 yw = g * pw
 ys = g * ps
 phi = np.deg2rad(41)  
-m = 1  
-l = 10  
-w = 6.7  
-C0 = 760  
-j = 0.8 
+m = 1 # saturation value (unitless)
+l = 10  # length (m)
+w = 6.7  # width (m)
+C0 = 760 # cohesion value (Pa)
+j = 0.8  # cohesion depth decay value (m)
+
+# Define functions
 
 def calculate_fs(row):
     hollow_rad = np.radians(row['Avg_Slope'])
     z = row['Avg_Soil_Depth']
     
-    if np.isnan(z) or np.isnan(hollow_rad):
-        return np.nan  
+    if np.isnan(z) or np.isnan(hollow_rad) or z <= 0:
+        return np.nan
+  
     
     Crb = C0 * np.exp(-z * j)
     Crl = (C0 / (j * z)) * (1 - np.exp(-z * j))
 
     K0 = 1 - np.sin(hollow_rad)
-
-    aa = 8 * (Crl / (ys * z)) * (np.cos(hollow_rad) ** 2) * np.sin(phi) * np.cos(phi)
-    bb = 4 * (Crl / (ys * z)) * (np.cos(phi) ** 2)
-    cc = 4 * (np.cos(hollow_rad) ** 2) * (((np.cos(hollow_rad) ** 2) - (np.cos(phi) ** 2)))
-    dd = 2 * ((Crl / (ys * z))) * (np.cos(phi) * np.sin(phi))
-    ee = 2 * (np.cos(hollow_rad)) ** 2
-    ff = 1 / ((np.cos(phi) ** 2))
-
-    # Kp = ff * ((ee) + (dd) + ((cc) + (bb) + (aa)) ** 0.5) - 1
-    # Ka = ff * ((ee) + (dd) - ((cc) + (bb) + (aa)) ** 0.5) - 1
     
-    Kp = np.tan(45+(41/2))**2
-    Ka = np.tan(45-(41/2))**2
+    Kp = np.tan((np.deg2rad(45))+(phi/2))**2
+    Ka = np.tan((np.deg2rad(45))-(phi/2))**2
 
 
     Frb = (Crb + ((np.cos(hollow_rad)) ** 2) * z * (ys - yw * m) * np.tan(phi)) * l * w
@@ -200,72 +243,112 @@ df['FS'] = df.apply(calculate_fs, axis=1)
 
 # ---------------- INTERPOLATE FS TO FIND EXACT FS = 1 YEAR ----------------
 optimal_buffers = {}
+FS0_MIN = 1
 
-for point_id in df['Point_ID'].unique():
-    point_data = df[df['Point_ID'] == point_id]  # Get data for this Point_ID
+for point_id in df["Point_ID"].unique():
+    point_data = df[df["Point_ID"] == point_id].copy()
 
-    # Step 1: Loop through each buffer size and interpolate FS over time
     buffer_first_crossings = {}
 
-    for buffer_size in point_data['Buffer_Size'].unique():
-        buffer_data = point_data[point_data['Buffer_Size'] == buffer_size].sort_values(by='Year')
+    # ---- Loop over buffers for this point ----
+    for buffer_size in sorted(point_data["Buffer_Size"].unique()):
+        buffer_data = (
+            point_data[point_data["Buffer_Size"] == buffer_size]
+            .sort_values(by="Year")
+        )
 
-        # Get Year and FS values as arrays
-        years = buffer_data['Year'].values
-        fs_values = buffer_data['FS'].values
+        years     = buffer_data["Year"].values
+        fs_values = buffer_data["FS"].values
 
-        # Only interpolate if there are at least two points
-        if len(years) < 2:
+        # Need at least two FS values and some finite ones
+        if len(years) < 2 or np.all(~np.isfinite(fs_values)):
+            continue
+        
+        # 🔴 Skip buffers that are already failed at the first time step
+        if fs_values[0] <= FS0_MIN:
+            print(f"[SKIP] Point {point_id}, Buffer {buffer_size}: "
+                  f"FS(Year={years[0]})={fs_values[0]:.3f} ≤ 1 at start")
             continue
 
-        # Interpolate FS over time
-        fs_interp = interp1d(fs_values, years, kind='linear', bounds_error=False, fill_value='extrapolate')
+        # Look for sign changes of (FS - 1) between consecutive samples
+        diff = fs_values - 1.0
+        idx = np.where(
+            np.isfinite(diff[:-1]) &
+            np.isfinite(diff[1:]) &
+            (diff[:-1] * diff[1:] <= 0)
+        )[0]
 
-        # Estimate the exact year where FS = 1
-        estimated_year = fs_interp(1)  # Find year where FS crosses 1
+        if idx.size == 0:
+            # never crosses 1 (stays >1 or <1 but not from the start)
+            continue
 
-        if not np.isnan(estimated_year) and estimated_year > min(years) and estimated_year < max(years):
-            buffer_first_crossings[buffer_size] = estimated_year
+        # Use the first crossing segment
+        i = idx[0]
+        fs_i, fs_ip1 = fs_values[i],   fs_values[i+1]
+        t_i,  t_ip1  = years[i],       years[i+1]
 
-    # Step 2: Find the buffer that reaches FS = 1 the fastest (smallest interpolated year)
+        if np.isclose(fs_ip1, fs_i):
+            frac = 0.0
+        else:
+            frac = (1.0 - fs_i) / (fs_ip1 - fs_i)
+
+        crossing_year = t_i + frac * (t_ip1 - t_i)
+
+        if years.min() < crossing_year < years.max():
+            buffer_first_crossings[buffer_size] = crossing_year
+            print(f"[FS=1] Point {point_id}, Buffer {buffer_size} → "
+                  f"Year ≈ {crossing_year:.2f}")
+
+    # ---- Pick earliest crossing buffer for this point ----
     if not buffer_first_crossings:
-        print(f"Warning: No FS = 1 data for Point_ID {point_id}. Skipping.")
+        print(f"Warning: No valid FS = 1 crossing for Point_ID {point_id} "
+              f"(ignoring already-failed buffers). Skipping.")
         continue
 
     optimal_buffer_size = min(buffer_first_crossings, key=buffer_first_crossings.get)
     optimal_year = buffer_first_crossings[optimal_buffer_size]
 
-    # Step 3: Interpolate Soil Depth and Slope at this interpolated year
-    selected_buffer_data = point_data[point_data["Buffer_Size"] == optimal_buffer_size].sort_values(by='Year')
+    # ---- Interpolate Soil Depth and Slope at this year ----
+    selected_buffer_data = (
+        point_data[point_data["Buffer_Size"] == optimal_buffer_size]
+        .sort_values(by="Year")
+    )
 
-    # Interpolating Soil Depth and Slope using the same approach
-    soil_depth_interp = interp1d(selected_buffer_data['Year'], selected_buffer_data['Avg_Soil_Depth'], kind='linear', bounds_error=False, fill_value='extrapolate')
-    slope_interp = interp1d(selected_buffer_data['Year'], selected_buffer_data['Avg_Slope'], kind='linear', bounds_error=False, fill_value='extrapolate')
+    soil_depth_interp = interp1d(
+        selected_buffer_data["Year"].values,
+        selected_buffer_data["Avg_Soil_Depth"].values,
+        kind="linear",
+        bounds_error=False,
+        fill_value="extrapolate",
+    )
+    slope_interp = interp1d(
+        selected_buffer_data["Year"].values,
+        selected_buffer_data["Avg_Slope"].values,
+        kind="linear",
+        bounds_error=False,
+        fill_value="extrapolate",
+    )
 
-    estimated_soil_depth = soil_depth_interp(optimal_year)
-    estimated_slope = slope_interp(optimal_year)
+    estimated_soil_depth = float(soil_depth_interp(optimal_year))
+    estimated_slope      = float(slope_interp(optimal_year))
 
-    # Step 4: Store interpolated values
     optimal_buffers[point_id] = {
-        'Optimal_Buffer_m': optimal_buffer_size,  # Buffer that reached FS = 1 first
-        'Year': optimal_year,  # Interpolated Year where FS = 1
-        'FS': 1.0,  # Exact FS value
-        'Avg_Soil_Depth_m': estimated_soil_depth,  # Interpolated soil depth
-        'Avg_Slope_deg': estimated_slope  # Interpolated slope
+        "Optimal_Buffer_m":   optimal_buffer_size,
+        "Year":               optimal_year,
+        "FS":                 1.0,
+        "Avg_Soil_Depth_m":   estimated_soil_depth,
+        "Avg_Slope_deg":      estimated_slope,
     }
 
-# Convert to DataFrame
-df_optimal_interpolated = pd.DataFrame.from_dict(optimal_buffers, orient='index')
+# ---- Convert to DataFrame & save ----
+df_optimal_interpolated = pd.DataFrame.from_dict(optimal_buffers, orient="index")
 df_optimal_interpolated.reset_index(inplace=True)
-df_optimal_interpolated.rename(columns={'index': 'Point_ID'}, inplace=True)
+df_optimal_interpolated.rename(columns={"index": "Point_ID"}, inplace=True)
 
-# # Save to CSV file
-output_path = r"C:\Users\sdavilao\Documents\newcodesoil\results\optimal_buffer_results_interpolated_ext19_760.csv"
+output_path = r"C:\Users\sdavilao\Documents\newcodesoil\results\new\optimal_buffer_results_interpolated_ext26_760.csv" #alter for correct cohesion/saturation value
 df_optimal_interpolated.to_csv(output_path, index=False)
 
-# Print Results
 print(df_optimal_interpolated)
-
 #%%
 # Constants 
 Sc = 1.25  
@@ -275,7 +358,7 @@ g = 9.81
 yw = g * pw
 ys = g * ps
 phi = np.deg2rad(41)  
-m = 1  
+m =  1
 l = 10  
 w = 6.7  
 C0 = 1920  
@@ -285,26 +368,17 @@ def calculate_fs(row):
     hollow_rad = np.radians(row['Avg_Slope'])
     z = row['Avg_Soil_Depth']
     
-    if np.isnan(z) or np.isnan(hollow_rad):
-        return np.nan  
+    if np.isnan(z) or np.isnan(hollow_rad) or z <= 0:
+        return np.nan
+  
     
     Crb = C0 * np.exp(-z * j)
     Crl = (C0 / (j * z)) * (1 - np.exp(-z * j))
 
     K0 = 1 - np.sin(hollow_rad)
-
-    aa = 8 * (Crl / (ys * z)) * (np.cos(hollow_rad) ** 2) * np.sin(phi) * np.cos(phi)
-    bb = 4 * (Crl / (ys * z)) * (np.cos(phi) ** 2)
-    cc = 4 * (np.cos(hollow_rad) ** 2) * (((np.cos(hollow_rad) ** 2) - (np.cos(phi) ** 2)))
-    dd = 2 * ((Crl / (ys * z))) * (np.cos(phi) * np.sin(phi))
-    ee = 2 * (np.cos(hollow_rad)) ** 2
-    ff = 1 / ((np.cos(phi) ** 2))
-
-    # Kp = ff * ((ee) + (dd) + ((cc) + (bb) + (aa)) ** 0.5) - 1
-    # Ka = ff * ((ee) + (dd) - ((cc) + (bb) + (aa)) ** 0.5) - 1
     
-    Kp = np.tan(45+(41/2))**2
-    Ka = np.tan(45-(41/2))**2
+    Kp = np.tan((np.deg2rad(45))+(phi/2))**2
+    Ka = np.tan((np.deg2rad(45))-(phi/2))**2
 
 
     Frb = (Crb + ((np.cos(hollow_rad)) ** 2) * z * (ys - yw * m) * np.tan(phi)) * l * w
@@ -319,57 +393,99 @@ df['FS'] = df.apply(calculate_fs, axis=1)
 # ---------------- INTERPOLATE FS TO FIND EXACT FS = 1 YEAR ----------------
 optimal_buffers = {}
 
-for point_id in df['Point_ID'].unique():
-    point_data = df[df['Point_ID'] == point_id]  # Get data for this Point_ID
+for point_id in df["Point_ID"].unique():
+    point_data = df[df["Point_ID"] == point_id].copy()
 
-    # Step 1: Loop through each buffer size and interpolate FS over time
     buffer_first_crossings = {}
 
-    for buffer_size in point_data['Buffer_Size'].unique():
-        buffer_data = point_data[point_data['Buffer_Size'] == buffer_size].sort_values(by='Year')
+    # ---- Loop over buffers for this point ----
+    for buffer_size in sorted(point_data["Buffer_Size"].unique()):
+        buffer_data = (
+            point_data[point_data["Buffer_Size"] == buffer_size]
+            .sort_values(by="Year")
+        )
 
-        # Get Year and FS values as arrays
-        years = buffer_data['Year'].values
-        fs_values = buffer_data['FS'].values
+        years     = buffer_data["Year"].values
+        fs_values = buffer_data["FS"].values
 
-        # Only interpolate if there are at least two points
-        if len(years) < 2:
+        # Need at least two FS values and some finite ones
+        if len(years) < 2 or np.all(~np.isfinite(fs_values)):
             continue
 
-        # Interpolate FS over time
-        fs_interp = interp1d(fs_values, years, kind='linear', bounds_error=False, fill_value='extrapolate')
+        # 🔴 Skip buffers that are already failed at the first time step
+        if fs_values[0] <= 1.0:
+            print(f"[SKIP] Point {point_id}, Buffer {buffer_size}: "
+                  f"FS(Year={years[0]})={fs_values[0]:.3f} ≤ 1 at start")
+            continue
 
-        # Estimate the exact year where FS = 1
-        estimated_year = fs_interp(1)  # Find year where FS crosses 1
+        # Look for sign changes of (FS - 1) between consecutive samples
+        diff = fs_values - 1.0
+        idx = np.where(
+            np.isfinite(diff[:-1]) &
+            np.isfinite(diff[1:]) &
+            (diff[:-1] * diff[1:] <= 0)
+        )[0]
 
-        if not np.isnan(estimated_year) and estimated_year > min(years) and estimated_year < max(years):
-            buffer_first_crossings[buffer_size] = estimated_year
+        if idx.size == 0:
+            # never crosses 1 (stays >1 or <1 but not from the start)
+            continue
 
-    # Step 2: Find the buffer that reaches FS = 1 the fastest (smallest interpolated year)
+        # Use the first crossing segment
+        i = idx[0]
+        fs_i, fs_ip1 = fs_values[i],   fs_values[i+1]
+        t_i,  t_ip1  = years[i],       years[i+1]
+
+        if np.isclose(fs_ip1, fs_i):
+            frac = 0.0
+        else:
+            frac = (1.0 - fs_i) / (fs_ip1 - fs_i)
+
+        crossing_year = t_i + frac * (t_ip1 - t_i)
+
+        if years.min() < crossing_year < years.max():
+            buffer_first_crossings[buffer_size] = crossing_year
+            print(f"[FS=1] Point {point_id}, Buffer {buffer_size} → "
+                  f"Year ≈ {crossing_year:.2f}")
+
+    # ---- Pick earliest crossing buffer for this point ----
     if not buffer_first_crossings:
-        print(f"Warning: No FS = 1 data for Point_ID {point_id}. Skipping.")
+        print(f"Warning: No valid FS = 1 crossing for Point_ID {point_id} "
+              f"(ignoring already-failed buffers). Skipping.")
         continue
 
     optimal_buffer_size = min(buffer_first_crossings, key=buffer_first_crossings.get)
     optimal_year = buffer_first_crossings[optimal_buffer_size]
 
-    # Step 3: Interpolate Soil Depth and Slope at this interpolated year
-    selected_buffer_data = point_data[point_data["Buffer_Size"] == optimal_buffer_size].sort_values(by='Year')
+    # ---- Interpolate Soil Depth and Slope at this year ----
+    selected_buffer_data = (
+        point_data[point_data["Buffer_Size"] == optimal_buffer_size]
+        .sort_values(by="Year")
+    )
 
-    # Interpolating Soil Depth and Slope using the same approach
-    soil_depth_interp = interp1d(selected_buffer_data['Year'], selected_buffer_data['Avg_Soil_Depth'], kind='linear', bounds_error=False, fill_value='extrapolate')
-    slope_interp = interp1d(selected_buffer_data['Year'], selected_buffer_data['Avg_Slope'], kind='linear', bounds_error=False, fill_value='extrapolate')
+    soil_depth_interp = interp1d(
+        selected_buffer_data["Year"].values,
+        selected_buffer_data["Avg_Soil_Depth"].values,
+        kind="linear",
+        bounds_error=False,
+        fill_value="extrapolate",
+    )
+    slope_interp = interp1d(
+        selected_buffer_data["Year"].values,
+        selected_buffer_data["Avg_Slope"].values,
+        kind="linear",
+        bounds_error=False,
+        fill_value="extrapolate",
+    )
 
-    estimated_soil_depth = soil_depth_interp(optimal_year)
-    estimated_slope = slope_interp(optimal_year)
+    estimated_soil_depth = float(soil_depth_interp(optimal_year))
+    estimated_slope      = float(slope_interp(optimal_year))
 
-    # Step 4: Store interpolated values
     optimal_buffers[point_id] = {
-        'Optimal_Buffer_m': optimal_buffer_size,  # Buffer that reached FS = 1 first
-        'Year': optimal_year,  # Interpolated Year where FS = 1
-        'FS': 1.0,  # Exact FS value
-        'Avg_Soil_Depth_m': estimated_soil_depth,  # Interpolated soil depth
-        'Avg_Slope_deg': estimated_slope  # Interpolated slope
+        "Optimal_Buffer_m":   optimal_buffer_size,
+        "Year":               optimal_year,
+        "FS":                 1.0,
+        "Avg_Soil_Depth_m":   estimated_soil_depth,
+        "Avg_Slope_deg":      estimated_slope,
     }
 
 # Convert to DataFrame
@@ -378,7 +494,7 @@ df_optimal_interpolated.reset_index(inplace=True)
 df_optimal_interpolated.rename(columns={'index': 'Point_ID'}, inplace=True)
 
 # # Save to CSV file
-output_path = r"C:\Users\sdavilao\Documents\newcodesoil\results\optimal_buffer_results_interpolated_ext19_1920.csv"
+output_path = r"C:\Users\sdavilao\Documents\newcodesoil\results\new\optimal_buffer_results_interpolated_ext20_1920.csv"
 df_optimal_interpolated.to_csv(output_path, index=False)
 
 # Print Results
@@ -392,7 +508,7 @@ g = 9.81
 yw = g * pw
 ys = g * ps
 phi = np.deg2rad(41)  
-m = 1  
+m =  1
 l = 10  
 w = 6.7  
 C0 = 3600  
@@ -402,26 +518,17 @@ def calculate_fs(row):
     hollow_rad = np.radians(row['Avg_Slope'])
     z = row['Avg_Soil_Depth']
     
-    if np.isnan(z) or np.isnan(hollow_rad):
-        return np.nan  
+    if np.isnan(z) or np.isnan(hollow_rad) or z <= 0:
+        return np.nan
+  
     
     Crb = C0 * np.exp(-z * j)
     Crl = (C0 / (j * z)) * (1 - np.exp(-z * j))
 
     K0 = 1 - np.sin(hollow_rad)
-
-    aa = 8 * (Crl / (ys * z)) * (np.cos(hollow_rad) ** 2) * np.sin(phi) * np.cos(phi)
-    bb = 4 * (Crl / (ys * z)) * (np.cos(phi) ** 2)
-    cc = 4 * (np.cos(hollow_rad) ** 2) * (((np.cos(hollow_rad) ** 2) - (np.cos(phi) ** 2)))
-    dd = 2 * ((Crl / (ys * z))) * (np.cos(phi) * np.sin(phi))
-    ee = 2 * (np.cos(hollow_rad)) ** 2
-    ff = 1 / ((np.cos(phi) ** 2))
-
-    # Kp = ff * ((ee) + (dd) + ((cc) + (bb) + (aa)) ** 0.5) - 1
-    # Ka = ff * ((ee) + (dd) - ((cc) + (bb) + (aa)) ** 0.5) - 1
     
-    Kp = np.tan(45+(41/2))**2
-    Ka = np.tan(45-(41/2))**2
+    Kp = np.tan((np.deg2rad(45))+(phi/2))**2
+    Ka = np.tan((np.deg2rad(45))-(phi/2))**2
 
 
     Frb = (Crb + ((np.cos(hollow_rad)) ** 2) * z * (ys - yw * m) * np.tan(phi)) * l * w
@@ -436,57 +543,99 @@ df['FS'] = df.apply(calculate_fs, axis=1)
 # ---------------- INTERPOLATE FS TO FIND EXACT FS = 1 YEAR ----------------
 optimal_buffers = {}
 
-for point_id in df['Point_ID'].unique():
-    point_data = df[df['Point_ID'] == point_id]  # Get data for this Point_ID
+for point_id in df["Point_ID"].unique():
+    point_data = df[df["Point_ID"] == point_id].copy()
 
-    # Step 1: Loop through each buffer size and interpolate FS over time
     buffer_first_crossings = {}
 
-    for buffer_size in point_data['Buffer_Size'].unique():
-        buffer_data = point_data[point_data['Buffer_Size'] == buffer_size].sort_values(by='Year')
+    # ---- Loop over buffers for this point ----
+    for buffer_size in sorted(point_data["Buffer_Size"].unique()):
+        buffer_data = (
+            point_data[point_data["Buffer_Size"] == buffer_size]
+            .sort_values(by="Year")
+        )
 
-        # Get Year and FS values as arrays
-        years = buffer_data['Year'].values
-        fs_values = buffer_data['FS'].values
+        years     = buffer_data["Year"].values
+        fs_values = buffer_data["FS"].values
 
-        # Only interpolate if there are at least two points
-        if len(years) < 2:
+        # Need at least two FS values and some finite ones
+        if len(years) < 2 or np.all(~np.isfinite(fs_values)):
             continue
 
-        # Interpolate FS over time
-        fs_interp = interp1d(fs_values, years, kind='linear', bounds_error=False, fill_value='extrapolate')
+        # 🔴 Skip buffers that are already failed at the first time step
+        if fs_values[0] <= 1.0:
+            print(f"[SKIP] Point {point_id}, Buffer {buffer_size}: "
+                  f"FS(Year={years[0]})={fs_values[0]:.3f} ≤ 1 at start")
+            continue
 
-        # Estimate the exact year where FS = 1
-        estimated_year = fs_interp(1)  # Find year where FS crosses 1
+        # Look for sign changes of (FS - 1) between consecutive samples
+        diff = fs_values - 1.0
+        idx = np.where(
+            np.isfinite(diff[:-1]) &
+            np.isfinite(diff[1:]) &
+            (diff[:-1] * diff[1:] <= 0)
+        )[0]
 
-        if not np.isnan(estimated_year) and estimated_year > min(years) and estimated_year < max(years):
-            buffer_first_crossings[buffer_size] = estimated_year
+        if idx.size == 0:
+            # never crosses 1 (stays >1 or <1 but not from the start)
+            continue
 
-    # Step 2: Find the buffer that reaches FS = 1 the fastest (smallest interpolated year)
+        # Use the first crossing segment
+        i = idx[0]
+        fs_i, fs_ip1 = fs_values[i],   fs_values[i+1]
+        t_i,  t_ip1  = years[i],       years[i+1]
+
+        if np.isclose(fs_ip1, fs_i):
+            frac = 0.0
+        else:
+            frac = (1.0 - fs_i) / (fs_ip1 - fs_i)
+
+        crossing_year = t_i + frac * (t_ip1 - t_i)
+
+        if years.min() < crossing_year < years.max():
+            buffer_first_crossings[buffer_size] = crossing_year
+            print(f"[FS=1] Point {point_id}, Buffer {buffer_size} → "
+                  f"Year ≈ {crossing_year:.2f}")
+
+    # ---- Pick earliest crossing buffer for this point ----
     if not buffer_first_crossings:
-        print(f"Warning: No FS = 1 data for Point_ID {point_id}. Skipping.")
+        print(f"Warning: No valid FS = 1 crossing for Point_ID {point_id} "
+              f"(ignoring already-failed buffers). Skipping.")
         continue
 
     optimal_buffer_size = min(buffer_first_crossings, key=buffer_first_crossings.get)
     optimal_year = buffer_first_crossings[optimal_buffer_size]
 
-    # Step 3: Interpolate Soil Depth and Slope at this interpolated year
-    selected_buffer_data = point_data[point_data["Buffer_Size"] == optimal_buffer_size].sort_values(by='Year')
+    # ---- Interpolate Soil Depth and Slope at this year ----
+    selected_buffer_data = (
+        point_data[point_data["Buffer_Size"] == optimal_buffer_size]
+        .sort_values(by="Year")
+    )
 
-    # Interpolating Soil Depth and Slope using the same approach
-    soil_depth_interp = interp1d(selected_buffer_data['Year'], selected_buffer_data['Avg_Soil_Depth'], kind='linear', bounds_error=False, fill_value='extrapolate')
-    slope_interp = interp1d(selected_buffer_data['Year'], selected_buffer_data['Avg_Slope'], kind='linear', bounds_error=False, fill_value='extrapolate')
+    soil_depth_interp = interp1d(
+        selected_buffer_data["Year"].values,
+        selected_buffer_data["Avg_Soil_Depth"].values,
+        kind="linear",
+        bounds_error=False,
+        fill_value="extrapolate",
+    )
+    slope_interp = interp1d(
+        selected_buffer_data["Year"].values,
+        selected_buffer_data["Avg_Slope"].values,
+        kind="linear",
+        bounds_error=False,
+        fill_value="extrapolate",
+    )
 
-    estimated_soil_depth = soil_depth_interp(optimal_year)
-    estimated_slope = slope_interp(optimal_year)
+    estimated_soil_depth = float(soil_depth_interp(optimal_year))
+    estimated_slope      = float(slope_interp(optimal_year))
 
-    # Step 4: Store interpolated values
     optimal_buffers[point_id] = {
-        'Optimal_Buffer_m': optimal_buffer_size,  # Buffer that reached FS = 1 first
-        'Year': optimal_year,  # Interpolated Year where FS = 1
-        'FS': 1.0,  # Exact FS value
-        'Avg_Soil_Depth_m': estimated_soil_depth,  # Interpolated soil depth
-        'Avg_Slope_deg': estimated_slope  # Interpolated slope
+        "Optimal_Buffer_m":   optimal_buffer_size,
+        "Year":               optimal_year,
+        "FS":                 1.0,
+        "Avg_Soil_Depth_m":   estimated_soil_depth,
+        "Avg_Slope_deg":      estimated_slope,
     }
 
 # Convert to DataFrame
@@ -495,7 +644,7 @@ df_optimal_interpolated.reset_index(inplace=True)
 df_optimal_interpolated.rename(columns={'index': 'Point_ID'}, inplace=True)
 
 # # Save to CSV file
-output_path = r"C:\Users\sdavilao\Documents\newcodesoil\results\optimal_buffer_results_interpolated_ext19_3600.csv"
+#output_path = r"C:\Users\sdavilao\Documents\newcodesoil\results\new\optimal_buffer_results_interpolated_ext20_3600.csv"
 df_optimal_interpolated.to_csv(output_path, index=False)
 
 # Print Results
@@ -519,26 +668,169 @@ def calculate_fs(row):
     hollow_rad = np.radians(row['Avg_Slope'])
     z = row['Avg_Soil_Depth']
     
-    if np.isnan(z) or np.isnan(hollow_rad):
-        return np.nan  
+    if np.isnan(z) or np.isnan(hollow_rad) or z <= 0:
+        return np.nan
+  
     
     Crb = C0 * np.exp(-z * j)
     Crl = (C0 / (j * z)) * (1 - np.exp(-z * j))
 
     K0 = 1 - np.sin(hollow_rad)
-
-    aa = 8 * (Crl / (ys * z)) * (np.cos(hollow_rad) ** 2) * np.sin(phi) * np.cos(phi)
-    bb = 4 * (Crl / (ys * z)) * (np.cos(phi) ** 2)
-    cc = 4 * (np.cos(hollow_rad) ** 2) * (((np.cos(hollow_rad) ** 2) - (np.cos(phi) ** 2)))
-    dd = 2 * ((Crl / (ys * z))) * (np.cos(phi) * np.sin(phi))
-    ee = 2 * (np.cos(hollow_rad)) ** 2
-    ff = 1 / ((np.cos(phi) ** 2))
-
-    # Kp = ff * ((ee) + (dd) + ((cc) + (bb) + (aa)) ** 0.5) - 1
-    # Ka = ff * ((ee) + (dd) - ((cc) + (bb) + (aa)) ** 0.5) - 1
     
-    Kp = np.tan(45+(41/2))**2
-    Ka = np.tan(45-(41/2))**2
+    Kp = np.tan((np.deg2rad(45))+(phi/2))**2
+    Ka = np.tan((np.deg2rad(45))-(phi/2))**2
+
+
+    Frb = (Crb + ((np.cos(hollow_rad)) ** 2) * z * (ys - yw * m) * np.tan(phi)) * l * w
+    Frc = (Crl + (K0 * 0.5 * z * (ys - yw * m ** 2) * np.tan(phi))) * (np.cos(hollow_rad) * z * l * 2)
+    Frddu = (Kp - Ka) * 0.5 * (z ** 2) * (ys - yw * (m ** 2)) * w
+    Fdc = (np.sin(hollow_rad)) * (np.cos(hollow_rad)) * z * ys * l * w
+
+    return (Frb + Frc + Frddu) / Fdc if Fdc != 0 else np.nan
+
+df['FS'] = df.apply(calculate_fs, axis=1)
+
+# ---------------- INTERPOLATE FS TO FIND EXACT FS = 1 YEAR ----------------
+optimal_buffers = {}
+
+for point_id in df["Point_ID"].unique():
+    point_data = df[df["Point_ID"] == point_id].copy()
+
+    buffer_first_crossings = {}
+
+    # ---- Loop over buffers for this point ----
+    for buffer_size in sorted(point_data["Buffer_Size"].unique()):
+        buffer_data = (
+            point_data[point_data["Buffer_Size"] == buffer_size]
+            .sort_values(by="Year")
+        )
+
+        years     = buffer_data["Year"].values
+        fs_values = buffer_data["FS"].values
+
+        # Need at least two FS values and some finite ones
+        if len(years) < 2 or np.all(~np.isfinite(fs_values)):
+            continue
+
+        # 🔴 Skip buffers that are already failed at the first time step
+        if fs_values[0] <= 1.0:
+            print(f"[SKIP] Point {point_id}, Buffer {buffer_size}: "
+                  f"FS(Year={years[0]})={fs_values[0]:.3f} ≤ 1 at start")
+            continue
+
+        # Look for sign changes of (FS - 1) between consecutive samples
+        diff = fs_values - 1.0
+        idx = np.where(
+            np.isfinite(diff[:-1]) &
+            np.isfinite(diff[1:]) &
+            (diff[:-1] * diff[1:] <= 0)
+        )[0]
+
+        if idx.size == 0:
+            # never crosses 1 (stays >1 or <1 but not from the start)
+            continue
+
+        # Use the first crossing segment
+        i = idx[0]
+        fs_i, fs_ip1 = fs_values[i],   fs_values[i+1]
+        t_i,  t_ip1  = years[i],       years[i+1]
+
+        if np.isclose(fs_ip1, fs_i):
+            frac = 0.0
+        else:
+            frac = (1.0 - fs_i) / (fs_ip1 - fs_i)
+
+        crossing_year = t_i + frac * (t_ip1 - t_i)
+
+        if years.min() < crossing_year < years.max():
+            buffer_first_crossings[buffer_size] = crossing_year
+            print(f"[FS=1] Point {point_id}, Buffer {buffer_size} → "
+                  f"Year ≈ {crossing_year:.2f}")
+
+    # ---- Pick earliest crossing buffer for this point ----
+    if not buffer_first_crossings:
+        print(f"Warning: No valid FS = 1 crossing for Point_ID {point_id} "
+              f"(ignoring already-failed buffers). Skipping.")
+        continue
+
+    optimal_buffer_size = min(buffer_first_crossings, key=buffer_first_crossings.get)
+    optimal_year = buffer_first_crossings[optimal_buffer_size]
+
+    # ---- Interpolate Soil Depth and Slope at this year ----
+    selected_buffer_data = (
+        point_data[point_data["Buffer_Size"] == optimal_buffer_size]
+        .sort_values(by="Year")
+    )
+
+    soil_depth_interp = interp1d(
+        selected_buffer_data["Year"].values,
+        selected_buffer_data["Avg_Soil_Depth"].values,
+        kind="linear",
+        bounds_error=False,
+        fill_value="extrapolate",
+    )
+    slope_interp = interp1d(
+        selected_buffer_data["Year"].values,
+        selected_buffer_data["Avg_Slope"].values,
+        kind="linear",
+        bounds_error=False,
+        fill_value="extrapolate",
+    )
+
+    estimated_soil_depth = float(soil_depth_interp(optimal_year))
+    estimated_slope      = float(slope_interp(optimal_year))
+
+    optimal_buffers[point_id] = {
+        "Optimal_Buffer_m":   optimal_buffer_size,
+        "Year":               optimal_year,
+        "FS":                 1.0,
+        "Avg_Soil_Depth_m":   estimated_soil_depth,
+        "Avg_Slope_deg":      estimated_slope,
+    }
+
+# Convert to DataFrame
+df_optimal_interpolated = pd.DataFrame.from_dict(optimal_buffers, orient='index')
+df_optimal_interpolated.reset_index(inplace=True)
+df_optimal_interpolated.rename(columns={'index': 'Point_ID'}, inplace=True)
+
+# # Save to CSV file
+output_path = r"C:\Users\sdavilao\Documents\newcodesoil\results\new\optimal_buffer_results_interpolated_ext20_6400.csv"
+df_optimal_interpolated.to_csv(output_path, index=False)
+
+# Print Results
+print(df_optimal_interpolated)
+
+#%%
+#%% ---------------- CALCULATE FACTOR OF SAFETY ----------------
+# Constants 
+Sc = 1.25  
+pw = 1000  
+ps = 1600  
+g = 9.81  
+yw = g * pw
+ys = g * ps
+phi = np.deg2rad(41)  
+m = 0.85
+l = 10  
+w = 6.7  
+C0 = 760  
+j = 0.8 
+
+def calculate_fs(row):
+    hollow_rad = np.radians(row['Avg_Slope'])
+    z = row['Avg_Soil_Depth']
+    
+    if np.isnan(z) or np.isnan(hollow_rad) or z <= 0:
+        return np.nan
+ 
+    
+    Crb = C0 * np.exp(-z * j)
+    Crl = (C0 / (j * z)) * (1 - np.exp(-z * j))
+
+    K0 = 1 - np.sin(hollow_rad)
+    
+    Kp = np.tan((np.deg2rad(45))+(phi/2))**2
+    Ka = np.tan((np.deg2rad(45))-(phi/2))**2
 
 
     Frb = (Crb + ((np.cos(hollow_rad)) ** 2) * z * (ys - yw * m) * np.tan(phi)) * l * w
@@ -574,7 +866,7 @@ for point_id in df['Point_ID'].unique():
         fs_interp = interp1d(fs_values, years, kind='linear', bounds_error=False, fill_value='extrapolate')
 
         # Estimate the exact year where FS = 1
-        estimated_year = fs_interp(1)  # Find year where FS crosses 1
+        estimated_year = fs_interp(1.00000)  # Find year where FS crosses 1
 
         if not np.isnan(estimated_year) and estimated_year > min(years) and estimated_year < max(years):
             buffer_first_crossings[buffer_size] = estimated_year
@@ -612,12 +904,11 @@ df_optimal_interpolated.reset_index(inplace=True)
 df_optimal_interpolated.rename(columns={'index': 'Point_ID'}, inplace=True)
 
 # # Save to CSV file
-output_path = r"C:\Users\sdavilao\Documents\newcodesoil\results\optimal_buffer_results_interpolated_ext19_6400.csv"
+output_path = r"C:\Users\sdavilao\Documents\newcodesoil\results\new\m\optimal_buffer_results_interpolated_ext16_760_mp85.csv"
 df_optimal_interpolated.to_csv(output_path, index=False)
 
 # Print Results
 print(df_optimal_interpolated)
-
 #%%
 # Constants 
 Sc = 1.25  
@@ -627,36 +918,27 @@ g = 9.81
 yw = g * pw
 ys = g * ps
 phi = np.deg2rad(41)  
-m = 0.8  
+m = 0.85  
 l = 10  
 w = 6.7  
-C0 = 3600  
+C0 = 1920  
 j = 0.8 
 
 def calculate_fs(row):
     hollow_rad = np.radians(row['Avg_Slope'])
     z = row['Avg_Soil_Depth']
     
-    if np.isnan(z) or np.isnan(hollow_rad):
-        return np.nan  
+    if np.isnan(z) or np.isnan(hollow_rad) or z <= 0:
+        return np.nan
+  
     
     Crb = C0 * np.exp(-z * j)
     Crl = (C0 / (j * z)) * (1 - np.exp(-z * j))
 
     K0 = 1 - np.sin(hollow_rad)
-
-    aa = 8 * (Crl / (ys * z)) * (np.cos(hollow_rad) ** 2) * np.sin(phi) * np.cos(phi)
-    bb = 4 * (Crl / (ys * z)) * (np.cos(phi) ** 2)
-    cc = 4 * (np.cos(hollow_rad) ** 2) * (((np.cos(hollow_rad) ** 2) - (np.cos(phi) ** 2)))
-    dd = 2 * ((Crl / (ys * z))) * (np.cos(phi) * np.sin(phi))
-    ee = 2 * (np.cos(hollow_rad)) ** 2
-    ff = 1 / ((np.cos(phi) ** 2))
-
-    # Kp = ff * ((ee) + (dd) + ((cc) + (bb) + (aa)) ** 0.5) - 1
-    # Ka = ff * ((ee) + (dd) - ((cc) + (bb) + (aa)) ** 0.5) - 1
     
-    Kp = np.tan(45+(41/2))**2
-    Ka = np.tan(45-(41/2))**2
+    Kp = np.tan((np.deg2rad(45))+(phi/2))**2
+    Ka = np.tan((np.deg2rad(45))-(phi/2))**2
 
 
     Frb = (Crb + ((np.cos(hollow_rad)) ** 2) * z * (ys - yw * m) * np.tan(phi)) * l * w
@@ -730,126 +1012,99 @@ df_optimal_interpolated.reset_index(inplace=True)
 df_optimal_interpolated.rename(columns={'index': 'Point_ID'}, inplace=True)
 
 # # Save to CSV file
-output_path = r"C:\Users\sdavilao\Documents\newcodesoil\results\optimal_buffer_results_interpolated_ext19_mp8.csv"
+output_path = r"C:\Users\sdavilao\Documents\newcodesoil\results\new\m\optimal_buffer_results_interpolated_ext16_1920_mp85.csv"
 df_optimal_interpolated.to_csv(output_path, index=False)
 
 # Print Results
 print(df_optimal_interpolated)
+
 
 #%%
-# Constants 
-Sc = 1.25  
-pw = 1000  
-ps = 1600  
-g = 9.81  
-yw = g * pw
-ys = g * ps
-phi = np.deg2rad(41)  
-m = 0.5  
-l = 10  
-w = 6.7  
-C0 = 3600  
-j = 0.8 
+# import numpy as np
+# import matplotlib.pyplot as plt
 
-def calculate_fs(row):
-    hollow_rad = np.radians(row['Avg_Slope'])
-    z = row['Avg_Soil_Depth']
-    
-    if np.isnan(z) or np.isnan(hollow_rad):
-        return np.nan  
-    
-    Crb = C0 * np.exp(-z * j)
-    Crl = (C0 / (j * z)) * (1 - np.exp(-z * j))
+# # --- Sort & extract ---
+# df = df.sort_values('Year')
+# x  = df['Year'].to_numpy()
+# fs = df['FS'].to_numpy()
+# sd = df['Avg_Soil_Depth'].to_numpy()
 
-    K0 = 1 - np.sin(hollow_rad)
+# # --- Find earliest failure (FS=1) with linear interpolation ---
+# diff = fs - 1.0
+# idx = np.where(diff[:-1] * diff[1:] <= 0)[0]
+# failure_year = None
+# sd_at_fail = None
+# if idx.size > 0:
+#     i = idx[0]
+#     t = 0.0 if np.isclose(fs[i+1], fs[i]) else (1.0 - fs[i]) / (fs[i+1] - fs[i])
+#     failure_year = x[i] + t * (x[i+1] - x[i])
+#     sd_at_fail   = sd[i] + t * (sd[i+1] - sd[i])
 
-    aa = 8 * (Crl / (ys * z)) * (np.cos(hollow_rad) ** 2) * np.sin(phi) * np.cos(phi)
-    bb = 4 * (Crl / (ys * z)) * (np.cos(phi) ** 2)
-    cc = 4 * (np.cos(hollow_rad) ** 2) * (((np.cos(hollow_rad) ** 2) - (np.cos(phi) ** 2)))
-    dd = 2 * ((Crl / (ys * z))) * (np.cos(phi) * np.sin(phi))
-    ee = 2 * (np.cos(hollow_rad)) ** 2
-    ff = 1 / ((np.cos(phi) ** 2))
+# fig, ax1 = plt.subplots(figsize=(7,5))
 
-    # Kp = ff * ((ee) + (dd) + ((cc) + (bb) + (aa)) ** 0.5) - 1
-    # Ka = ff * ((ee) + (dd) - ((cc) + (bb) + (aa)) ** 0.5) - 1
-    
-    Kp = np.tan(45+(41/2))**2
-    Ka = np.tan(45-(41/2))**2
+# # --- Left y-axis: FS ---
+# ax1.plot(x, fs, marker='o', lw=1.2, color='C0', label='FS')
+# ax1.axhline(1.0, ls='--', lw=1.2, color='C0', alpha=0.9, label='FS = 1')
+# ax1.set_xlabel('Year')
+# ax1.set_ylabel('FS', color='C0')
+# ax1.tick_params(axis='y', labelcolor='C0')
+# ax1.set_xlim(0, 1000)
+
+# # Start with tight FS limits + small padding
+# fs_min0, fs_max0 = np.min(fs), np.max(fs)
+# pad = 0.05 * max(1e-9, fs_max0 - fs_min0)
+# fs_min, fs_max = fs_min0 - pad, fs_max0 + pad
+# ax1.set_ylim(fs_min, fs_max)
+
+# # --- Right y-axis: Soil Depth (start at 0) ---
+# ax2 = ax1.twinx()
+# ax2.plot(x, sd, marker='s', lw=1.2, color='C1', label='Avg Soil Depth')
+# ax2.set_ylabel('Average Soil Depth (m)', color='C1')
+# ax2.tick_params(axis='y', labelcolor='C1')
+
+# if (failure_year is not None) and (sd_at_fail is not None) and (sd_at_fail >= 0):
+#     # We require: normalized FS position of 1 equals normalized SD position of sd_at_fail with sd_min=0
+#     # => SD_max_required_for_alignment = sd_at_fail * (fs_max - fs_min) / (1 - fs_min)
+#     # Also must cover data: SD_max >= max(sd)*1.05
+
+#     # Iteratively expand fs_max just enough (if needed) to satisfy both constraints
+#     sd_obs_max = 1.05 * np.max(sd)  # headroom
+#     for _ in range(10):  # a few iterations is plenty
+#         # protect against fs_min==1
+#         denom = max(1 - fs_min, 1e-9)
+#         sdmax_aligned = sd_at_fail * (fs_max - fs_min) / denom
+#         SD_target = max(sd_obs_max, sdmax_aligned)
+
+#         # If alignment doesn't yet cover the observed max depth, raise fs_max
+#         if SD_target > sdmax_aligned:
+#             # Solve for fs_max_new so that sd_at_fail * (fs_max_new - fs_min)/denom = SD_target
+#             fs_max_new = fs_min + SD_target * denom / max(sd_at_fail, 1e-9)
+#             if fs_max_new <= fs_max + 1e-12:
+#                 break
+#             fs_max = fs_max_new
+#             ax1.set_ylim(fs_min, fs_max)
+#             continue
+#         break
+
+#     # Lock depth axis: start at 0, top at aligned SD_max
+#     ax2.set_ylim(0.0, sd_at_fail * (fs_max - fs_min) / max(1 - fs_min, 1e-9))
+
+#     # Visual cues
+#     ax1.axvline(failure_year, ls=':', lw=1, color='k', alpha=0.9, label='Failure year')
+#     ax2.axhline(sd_at_fail, ls='--', lw=1.2, color='C1', alpha=0.9,
+#                 label=f'Depth @ FS=1 = {sd_at_fail:.2f} m')
+#     ax2.plot([failure_year], [sd_at_fail], 'o', color='C1', zorder=5)
+
+# # (Optional) tidy right-axis ticks for nicer spacing even if the range is tall
+# # from matplotlib.ticker import MaxNLocator
+# # ax2.yaxis.set_major_locator(MaxNLocator(nbins=6, prune=None))
+
+# # Combined legend
+# h1,l1 = ax1.get_legend_handles_labels()
+# h2,l2 = ax2.get_legend_handles_labels()
+# fig.legend(h1+h2, l1+l2, loc='upper right')
+
+# plt.tight_layout()
+# plt.show()
 
 
-    Frb = (Crb + ((np.cos(hollow_rad)) ** 2) * z * (ys - yw * m) * np.tan(phi)) * l * w
-    Frc = (Crl + (K0 * 0.5 * z * (ys - yw * m ** 2) * np.tan(phi))) * (np.cos(hollow_rad) * z * l * 2)
-    Frddu = (Kp - Ka) * 0.5 * (z ** 2) * (ys - yw * (m ** 2)) * w
-    Fdc = (np.sin(hollow_rad)) * (np.cos(hollow_rad)) * z * ys * l * w
-
-    return (Frb + Frc + Frddu) / Fdc if Fdc != 0 else np.nan
-
-df['FS'] = df.apply(calculate_fs, axis=1)
-
-# ---------------- INTERPOLATE FS TO FIND EXACT FS = 1 YEAR ----------------
-optimal_buffers = {}
-
-for point_id in df['Point_ID'].unique():
-    point_data = df[df['Point_ID'] == point_id]  # Get data for this Point_ID
-
-    # Step 1: Loop through each buffer size and interpolate FS over time
-    buffer_first_crossings = {}
-
-    for buffer_size in point_data['Buffer_Size'].unique():
-        buffer_data = point_data[point_data['Buffer_Size'] == buffer_size].sort_values(by='Year')
-
-        # Get Year and FS values as arrays
-        years = buffer_data['Year'].values
-        fs_values = buffer_data['FS'].values
-
-        # Only interpolate if there are at least two points
-        if len(years) < 2:
-            continue
-
-        # Interpolate FS over time
-        fs_interp = interp1d(fs_values, years, kind='linear', bounds_error=False, fill_value='extrapolate')
-
-        # Estimate the exact year where FS = 1
-        estimated_year = fs_interp(1)  # Find year where FS crosses 1
-
-        if not np.isnan(estimated_year) and estimated_year > min(years) and estimated_year < max(years):
-            buffer_first_crossings[buffer_size] = estimated_year
-
-    # Step 2: Find the buffer that reaches FS = 1 the fastest (smallest interpolated year)
-    if not buffer_first_crossings:
-        print(f"Warning: No FS = 1 data for Point_ID {point_id}. Skipping.")
-        continue
-
-    optimal_buffer_size = min(buffer_first_crossings, key=buffer_first_crossings.get)
-    optimal_year = buffer_first_crossings[optimal_buffer_size]
-
-    # Step 3: Interpolate Soil Depth and Slope at this interpolated year
-    selected_buffer_data = point_data[point_data["Buffer_Size"] == optimal_buffer_size].sort_values(by='Year')
-
-    # Interpolating Soil Depth and Slope using the same approach
-    soil_depth_interp = interp1d(selected_buffer_data['Year'], selected_buffer_data['Avg_Soil_Depth'], kind='linear', bounds_error=False, fill_value='extrapolate')
-    slope_interp = interp1d(selected_buffer_data['Year'], selected_buffer_data['Avg_Slope'], kind='linear', bounds_error=False, fill_value='extrapolate')
-
-    estimated_soil_depth = soil_depth_interp(optimal_year)
-    estimated_slope = slope_interp(optimal_year)
-
-    # Step 4: Store interpolated values
-    optimal_buffers[point_id] = {
-        'Optimal_Buffer_m': optimal_buffer_size,  # Buffer that reached FS = 1 first
-        'Year': optimal_year,  # Interpolated Year where FS = 1
-        'FS': 1.0,  # Exact FS value
-        'Avg_Soil_Depth_m': estimated_soil_depth,  # Interpolated soil depth
-        'Avg_Slope_deg': estimated_slope  # Interpolated slope
-    }
-
-# Convert to DataFrame
-df_optimal_interpolated = pd.DataFrame.from_dict(optimal_buffers, orient='index')
-df_optimal_interpolated.reset_index(inplace=True)
-df_optimal_interpolated.rename(columns={'index': 'Point_ID'}, inplace=True)
-
-# # Save to CSV file
-output_path = r"C:\Users\sdavilao\Documents\newcodesoil\results\optimal_buffer_results_interpolated_ext19_mp5.csv"
-df_optimal_interpolated.to_csv(output_path, index=False)
-
-# Print Results
-print(df_optimal_interpolated)

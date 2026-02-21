@@ -4,13 +4,18 @@ Created on Wed Apr 30 15:39:24 2025
 
 @author: sdavilao
 """
-#%% REPROJ TIF FILES
+
+#%%
+
+import geopandas as gpd
 import os
 import glob
 import rasterio
 from rasterio.warp import calculate_default_transform, reproject, Resampling
 
-def reproject_all_tifs(input_folder, output_folder, target_crs="EPSG:32610"):
+#%% reproject resulting tifs
+
+def reproject_all_tifs(input_folder, output_folder, target_crs="EPSG:32610"): # target crs
     os.makedirs(output_folder, exist_ok=True)
     tif_files = glob.glob(os.path.join(input_folder, "*.tif"))
 
@@ -27,7 +32,7 @@ def reproject_all_tifs(input_folder, output_folder, target_crs="EPSG:32610"):
                 'height': height
             })
 
-            out_name = os.path.basename(tif_path).replace(".tif", "_32610.tif")
+            out_name = os.path.basename(tif_path).replace(".tif", "_32610.tif") # alter for desired crs
             out_path = os.path.join(output_folder, out_name)
 
             with rasterio.open(out_path, 'w', **kwargs) as dst:
@@ -49,46 +54,11 @@ output_folder = r"C:\Users\sdavilao\Documents\newcodesoil\simulation_results\new
 
 
 reproject_all_tifs(input_folder, output_folder)
-#%%
-import numpy as np
-import rasterio
 
-def convert_elevation_to_meters(in_path, out_path, foot_to_m=0.3048):
-    with rasterio.open(in_path) as src:
-        prof = src.profile.copy()
-        nodata = src.nodata
-        prof.update(dtype="float32", compress="lzw", tiled=True,
-                    blockxsize=256, blockysize=256, predictor=2, BIGTIFF="IF_SAFER")
-
-        with rasterio.open(out_path, "w", **prof) as dst:
-            for i in range(1, src.count + 1):
-                arr = src.read(i).astype("float32")
-                if nodata is not None:
-                    mask = (arr == nodata)
-                else:
-                    mask = ~np.isfinite(arr)
-
-                arr[~mask] *= np.float32(foot_to_m)   # feet -> meters
-                dst.write(arr, i)
-
-            # optional: helpful band/driver tags (not a formal vertical unit standard)
-            dst.set_band_description(1, "elevation (m)")
-            dst.update_tags(1, units="metre")
-
-# Usage
-in_path  = r"C:\Users\sdavilao\Documents\bigtif\fullextent\reproj\smoothed_dem_avg9_32610.tif"     # your warped DEM
-out_path = r"C:\Users\sdavilao\Documents\bigtif\fullextent\reproj\smoothed_dem_avg9_32610_m.tif"
-convert_elevation_to_meters(in_path, out_path, foot_to_m=0.3048)  # 6557 uses international feet
-
-
-#%% REPROJ SHP FILES
-
-import geopandas as gpd
-import os
-import glob
+#%% reproject shp files for landslide area selection
 
 # === Set your folders ===
-input_folder = r"C:\Users\sdavilao\Documents\newcodesoil"       # Folder with .shp files in EPSG:2992
+input_folder = r"C:\Users\sdavilao\Documents\newcodesoil"       # Folder with .shp files in EPSG:X
 output_folder = r"C:\Users\sdavilao\Documents\newcodesoil\reproj_shp"   # Where to save reprojected files
 
 # Create output folder if needed
@@ -101,17 +71,17 @@ for shp_path in shapefiles:
     try:
         # Load and assign correct CRS
         gdf = gpd.read_file(shp_path)
-        gdf.set_crs(epsg=6557, inplace=True)  #Alter espf ti input shp CRS
+        gdf.set_crs(epsg=6557, inplace=True)  # alter espf to input shp CRS
 
         # Reproject to EPSG:32610
-        gdf_utm = gdf.to_crs(epsg=32610)
+        gdf_utm = gdf.to_crs(epsg=32610) # desired output crs
 
         # Save to output folder
         base_name = os.path.splitext(os.path.basename(shp_path))[0]
         out_path = os.path.join(output_folder, f"{base_name}_32610.shp")
         gdf_utm.to_file(out_path)
 
-        print(f"✅ Reprojected: {base_name}.shp → EPSG:32610")
+        print(f"Reprojected: {base_name}.shp → EPSG:32610")
 
     except Exception as e:
         print(f"Failed: {os.path.basename(shp_path)} → {e}")

@@ -15,27 +15,25 @@ import numpy as np
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import rasterio
-from shapely.geometry import Point
 from rasterio.features import geometry_mask
 from osgeo import gdal
 from landlab import imshowhs_grid
 from landlab.components import TaylorNonLinearDiffuser
 from landlab.io import read_esri_ascii, write_esri_ascii
-import glob
 import re
 
 # Paths and constants
 BASE_DIR = os.path.join(os.getcwd())
 # Get all TIF files with the extX pattern
 #tif_files = sorted(glob.glob(os.path.join(BASE_DIR, 'ext*.tif')))
-INPUT_TIFF = 'ext19.tif'
-POINTS_SHP = os.path.join(BASE_DIR, 'ext19_1.shp')
-BUFFER_SHP = os.path.join(BASE_DIR, 'ext19_buff.shp')
-BUFFER_DISTANCE = 21
+INPUT_TIFF = 'ext26.tif'
+POINTS_SHP = os.path.join(BASE_DIR, 'ext26.shp')  # shp file of center of hollow
+BUFFER_SHP = os.path.join(BASE_DIR, 'ext26_buff.shp')  # shp file for buffer aroound hollow created by code
+BUFFER_DISTANCE = 16 #in meters, and will give diameter of buffer
 ft2mUS = 1200 / 3937
 ft2mInt = 0.3048
 
-OUT_DIR = os.path.join(BASE_DIR, 'simulation_results\\new')
+OUT_DIR = os.path.join(BASE_DIR, 'simulation_results\\new\\new')
 OUT_DIRpng = os.path.join(OUT_DIR, 'PNGs')
 OUT_DIRtiff = os.path.join(OUT_DIR, 'GeoTIFFs')
 OUT_DIRasc = os.path.join(OUT_DIR, 'ASCs')
@@ -181,9 +179,19 @@ def plot_change(data, title, basefilename, time, K, grid_shape,vmin=None, vmax=N
 def save_as_tiff(data, filename, meta, grid_shape):
     if data.ndim == 1:
         data = data.reshape(grid_shape)
+
+    meta = meta.copy()
+    meta.update(
+        dtype=rasterio.float32,
+        count=1,
+        compress='deflate'
+    )
+
     with rasterio.open(filename, 'w', **meta) as dst:
         dst.write(np.flipud(data.astype(rasterio.float32)), 1)
+
     print(f"Saved TIFF: {filename}")
+
 
 def plot_save(grid, z, basefilename, time, K, mean_res, XYZunit):
     plt.figure(figsize=(6, 5.25))
@@ -247,11 +255,11 @@ def run_simulation(in_tiff, K, Sc, dt, target_time, point_shapefile):
         grid.at_node['soil__depth'] = total_soil_depth
         z_old = z_new.copy()
 
-        if time % 100000 == 0:
-            #save_as_tiff(elevation_change, os.path.join(OUT_DIRtiff, f"{basefilename}_change_in_elevation_{time}yrs.tif"), meta, grid.shape)
-            #save_as_tiff(change_in_soil_depth, os.path.join(OUT_DIRtiff, f"{basefilename}_change_in_soil_depth_{time}yrs.tif"), meta, grid.shape)
+        if time % 50 == 0:
+            save_as_tiff(elevation_change, os.path.join(OUT_DIRtiff, f"{basefilename}_change_in_elevation_{time}yrs.tif"), meta, grid.shape)
+            save_as_tiff(change_in_soil_depth, os.path.join(OUT_DIRtiff, f"{basefilename}_change_in_soil_depth_{time}yrs.tif"), meta, grid.shape)
             save_as_tiff(total_soil_depth, os.path.join(OUT_DIRtiff, f"{basefilename}_total_soil_depth_{time}yrs.tif"), meta, grid.shape)
-            #save_as_tiff(production_rate, os.path.join(OUT_DIRtiff, f"{basefilename}_production_rate_{time}yrs.tif"), meta, grid.shape)
+            save_as_tiff(production_rate, os.path.join(OUT_DIRtiff, f"{basefilename}_production_rate_{time}yrs.tif"), meta, grid.shape)
             tiff_elevation_path = os.path.join(OUT_DIRtiff, f"{basefilename}_elevation_{time}yrs.tif")
             asc_to_tiff(asc_path, tiff_elevation_path, meta)
 
@@ -262,7 +270,7 @@ def run_simulation(in_tiff, K, Sc, dt, target_time, point_shapefile):
             #plot_change(production_rate, "Soil Produced", basefilename, time, K, grid_shape, vmin=0, vmax=0.01, cmap='plasma')
 
 
-        if time % 100000 == 0:
+        if time % 50 == 0:
             asc_path = plot_save(grid, z_new, basefilename, time, K, mean_res, XYZunit)
             tiff_path = os.path.join(OUT_DIRtiff, f"{basefilename}_{time}yrs_K{K}.tif")
             asc_to_tiff(asc_path, tiff_path, meta)
@@ -280,34 +288,691 @@ ps = 1600   # Ratio of soil loss (example value)
 P0 = 0.0003  # Initial soil production rate (example value, e.g., kg/m²/year)
 h0 = 0.5   # Depth constant related to soil production (example value, e.g., meters)
 dt = 50
-target_time = 1000000
+target_time = 5000
 
 
 run_simulation(INPUT_TIFF, K, Sc, dt, target_time,POINTS_SHP)
 
 #%%
-# import glob
+import os
+import re
+import numpy as np
+import rasterio
+import matplotlib.pyplot as plt
+import geopandas as gpd
+from rasterio.features import geometry_mask
 
-# def convert_soil_depth_tifs_to_meters(output_folder, unit_type="foot"):
-#     if unit_type.lower() not in ["foot", "ft", "us survey feet"]:
-#         print("Skipping conversion: units are already in meters.")
-#         return
+# Reuse your globals:
+# BASE_DIR, OUT_DIRtiff, OUT_DIRpng, INPUT_TIFF, BUFFER_SHP
 
-#     conversion_factor = 0.3048  # feet to meters
+TIFF_DIR = OUT_DIRtiff
+base = os.path.splitext(INPUT_TIFF)[0]
 
-#     tif_files = glob.glob(os.path.join(output_folder, "*total_soil_depth*.tif"))
-#     for tif_path in tif_files:
-#         with rasterio.open(tif_path) as src:
-#             data = src.read(1)
-#             meta = src.meta
+# Files like: ext17_soil_produced_5000000yrs.tif
+pattern_prod = re.compile(rf"{base}_production_rate_(\d+)yrs")
 
-#         data_m = data * conversion_factor
-#         out_path = tif_path.replace(".tif", "_meters.tif")
 
-#         with rasterio.open(out_path, 'w', **meta) as dst:
-#             dst.write(data_m.astype(rasterio.float32), 1)
+def build_buffer_mask(dem_path, buffer_shapefile):
+    """
+    Returns boolean mask (True = inside buffer) in the same orientation
+    as arrays after np.flipud(read(1)).
+    """
+    with rasterio.open(dem_path) as src:
+        transform = src.transform
+        out_shape = src.read(1).shape
+        dem_crs = src.crs
 
-#         print(f"✅ Converted {os.path.basename(tif_path)} to meters → {os.path.basename(out_path)}")
-        
-# convert_soil_depth_tifs_to_meters(OUT_DIRtiff, unit_type="foot")  # or "us survey feet"
+    gdf = gpd.read_file(buffer_shapefile)
+    if gdf.crs is None:
+        raise ValueError("Buffer shapefile has no CRS. Define it before using.")
+    if gdf.crs != dem_crs:
+        gdf = gdf.to_crs(dem_crs)
 
+    geoms = [g for g in gdf.geometry if g is not None and not g.is_empty]
+
+    mask_raw = geometry_mask(
+        geoms,
+        transform=transform,
+        invert=True,   # True = inside shapes
+        out_shape=out_shape
+    )
+
+    # You save TIFFs with np.flipud(data), so flip mask to match:
+    mask = np.flipud(mask_raw)
+    return mask
+
+
+# Build buffer mask once
+dem_path = os.path.join(BASE_DIR, INPUT_TIFF)
+buffer_mask = build_buffer_mask(dem_path, BUFFER_SHP)
+
+
+def load_soil_produced_buffered(path):
+    """Load soil_produced TIFF, flip, apply buffer mask, handle nodata."""
+    with rasterio.open(path) as src:
+        arr = src.read(1).astype(float)
+        nodata = src.nodata
+
+    arr = np.flipud(arr)
+
+    if nodata is not None:
+        arr[arr == nodata] = np.nan
+
+    # Keep only inside buffer
+    arr_masked = np.where(buffer_mask, arr, np.nan)
+    return arr_masked
+
+
+# --- Collect mean soil produced per timestep vs time ---
+mean_prod = {}  # time (yrs) -> mean soil produced inside buffer
+
+for fname in os.listdir(TIFF_DIR):
+    m = pattern_prod.search(fname)
+    if not m:
+        continue
+
+    t = int(m.group(1))  # time in yrs from filename
+    fpath = os.path.join(TIFF_DIR, fname)
+
+    arr = load_soil_produced_buffered(fpath)
+    mean_prod[t] = np.nanmean(arr)
+
+# --- Build time series ---
+times = sorted(mean_prod.keys())
+prod_ts = [mean_prod[t] for t in times]
+
+# Cumulative soil produced (sum of per-step mean depth)
+# Note: this is cumulative depth, not volume; for volume you’d multiply by cell area.
+cum_prod_ts = np.cumsum(prod_ts)
+
+# --- Plot ---
+fig, ax = plt.subplots(2, 1, figsize=(7, 7), sharex=True)
+
+# Per-step mean soil produced
+ax[0].plot(times, prod_ts, marker='o', lw=1.8)
+ax[0].set_ylabel("Mean soil produced\nper step (m)")
+ax[0].set_title(f"Soil Produced Through Time\nBuffered Region – {base}")
+ax[0].grid(True, linestyle='--', alpha=0.5)
+
+# Cumulative soil produced
+ax[1].plot(times, cum_prod_ts, marker='o', lw=1.8)
+ax[1].set_ylabel("Cumulative mean soil\nproduced (m)")
+ax[1].set_xlabel("Time (yrs)")
+ax[1].grid(True, linestyle='--', alpha=0.5)
+
+plt.tight_layout()
+out_ts = os.path.join(OUT_DIRpng, f"{base}_soil_produced_timeseries_BUFFERED.png")
+plt.savefig(out_ts, dpi=150)
+plt.close()
+
+print("Saved soil-produced time series plot:", out_ts)
+
+#%%
+import os
+import re
+import numpy as np
+import rasterio
+import matplotlib.pyplot as plt
+import geopandas as gpd
+from rasterio.features import geometry_mask
+
+# Reuse your existing globals:
+# BASE_DIR, OUT_DIRtiff, OUT_DIRpng, INPUT_TIFF, BUFFER_SHP
+
+TIFF_DIR = OUT_DIRtiff
+base = os.path.splitext(INPUT_TIFF)[0]
+
+# We expect filenames like:
+#   ext17_change_in_elevation_5000000yrs.tif
+pattern_elev = re.compile(rf"{base}_change_in_elevation_(\d+)yrs")
+
+
+def build_buffer_mask(dem_path, buffer_shapefile):
+    """
+    Returns boolean mask (True = inside buffer) in the same orientation
+    as arrays after np.flipud(read(1)).
+    """
+    with rasterio.open(dem_path) as src:
+        transform = src.transform
+        out_shape = src.read(1).shape
+        dem_crs = src.crs
+
+    gdf = gpd.read_file(buffer_shapefile)
+    if gdf.crs is None:
+        raise ValueError("Buffer shapefile has no CRS. Define it before using.")
+    if gdf.crs != dem_crs:
+        gdf = gdf.to_crs(dem_crs)
+
+    geoms = [g for g in gdf.geometry if g is not None and not g.is_empty]
+
+    mask_raw = geometry_mask(
+        geoms,
+        transform=transform,
+        invert=True,    # True = inside shapes (buffer area)
+        out_shape=out_shape
+    )
+
+    # Your save_as_tiff uses np.flipud(data), so flip mask to match TIFF orientation
+    mask = np.flipud(mask_raw)
+    return mask
+
+
+# Build buffer mask once, based on the original DEM
+dem_path = os.path.join(BASE_DIR, INPUT_TIFF)
+buffer_mask = build_buffer_mask(dem_path, BUFFER_SHP)
+
+
+def load_change_elev_buffered(path):
+    """
+    Load a change_in_elevation TIFF, flip vertically (to undo save_as_tiff flip),
+    mask to buffer, convert nodata to NaN.
+    """
+    with rasterio.open(path) as src:
+        arr = src.read(1).astype(float)
+        nodata = src.nodata
+
+    # Undo np.flipud used when writing
+    arr = np.flipud(arr)
+
+    if nodata is not None:
+        arr[arr == nodata] = np.nan
+
+    # Only keep inside buffer
+    arr_masked = np.where(buffer_mask, arr, np.nan)
+    return arr_masked
+
+
+# --- Collect mean net change in elevation vs time (inside buffer) ---
+mean_dz = {}  # time (yrs) -> mean Δz (m), negative = net erosion
+
+for fname in os.listdir(TIFF_DIR):
+    m = pattern_elev.search(fname)
+    if not m:
+        continue
+
+    t = int(m.group(1))   # time in yrs from filename
+    fpath = os.path.join(TIFF_DIR, fname)
+
+    dz = load_change_elev_buffered(fpath)
+    mean_dz[t] = np.nanmean(dz)
+
+
+# --- Build time series ---
+times = sorted(mean_dz.keys())
+dz_ts = [mean_dz[t] for t in times]
+
+# Cumulative net change (depth-wise, mean over buffer)
+cum_dz_ts = np.cumsum(dz_ts)
+
+# ----------------------------
+# Rates (m/yr) inside buffer
+# ----------------------------
+dt_model = dt  # reuse your simulation dt (50 yrs)
+
+prod_rate_ts = np.array(prod_ts, dtype=float) / dt_model  # m/yr (since prod_ts is per-step increment)
+
+dz_rate_ts = np.array(dz_ts, dtype=float) / dt_model      # signed net Δz rate (m/yr)
+
+# "Erosion rate" as positive-down lowering only (ignore deposition / aggradation)
+erosion_rate_ts = np.maximum(0.0, -dz_rate_ts)            # m/yr
+
+# Optional: "deposition rate" (positive-up aggradation only)
+deposition_rate_ts = np.maximum(0.0, dz_rate_ts)          # m/yr
+
+plt.figure(figsize=(7, 4.5))
+ax = plt.gca()
+ax.set_facecolor("#f0f0f0")
+ax.set_xlim(0, 2500)
+
+ax.plot(times, prod_rate_ts, marker='o', lw=1.8, label="Production rate (m/yr)")
+ax.plot(times, erosion_rate_ts, marker='o', lw=1.8, label="Erosion rate (m/yr; lowering only)")
+
+ax.set_xlabel("Time (yrs)")
+ax.set_ylabel("Rate (m/yr)\n(mean inside buffer)")
+ax.set_title(f"Production & Erosion Rates Through Time\nPoint buffered – {base}")
+ax.grid(True, linestyle='--', alpha=0.5)
+ax.legend()
+
+plt.tight_layout()
+out_png_rates = os.path.join(OUT_DIRpng, f"{base}_prod_erosion_rates_Point.png")
+plt.savefig(out_png_rates, dpi=450)
+plt.close()
+
+print("Saved rates plot:", out_png_rates)
+
+
+# --- Plot ---
+fig, axes = plt.subplots(2, 1, figsize=(7, 7), sharex=True)
+
+# Panel 1: per-step mean Δz
+axes[0].plot(times, dz_ts, marker='o', lw=1.8)
+axes[0].axhline(0, color='k', linewidth=1, linestyle='--')
+axes[0].set_ylabel("Mean Δz per step (m)\ninside buffer")
+axes[0].set_title(f"Net Change in Elevation Through Time\nBuffered Region – {base}")
+axes[0].grid(True, linestyle='--', alpha=0.5)
+
+# Panel 2: cumulative net Δz
+axes[1].plot(times, cum_dz_ts, marker='o', lw=1.8)
+axes[1].axhline(0, color='k', linewidth=1, linestyle='--')
+axes[1].set_ylabel("Cumulative mean Δz (m)\ninside buffer")
+axes[1].set_xlabel("Time (yrs)")
+axes[1].grid(True, linestyle='--', alpha=0.5)
+
+plt.tight_layout()
+out_png = os.path.join(OUT_DIRpng, f"{base}_change_in_elevation_timeseries_BUFFERED.png")
+plt.savefig(out_png, dpi=450)
+plt.close()
+
+print("Saved buffered change-in-elevation time series plot:", out_png)
+
+#%%
+import os
+import re
+import numpy as np
+import rasterio
+import matplotlib.pyplot as plt
+import geopandas as gpd
+from rasterio.features import geometry_mask
+
+# Reuse your globals:
+# BASE_DIR, OUT_DIRtiff, OUT_DIRpng, INPUT_TIFF, BUFFER_SHP
+
+TIFF_DIR = OUT_DIRtiff
+base = os.path.splitext(INPUT_TIFF)[0]
+
+# File patterns:
+#   ext17_soil_produced_5000000yrs.tif
+#   ext17_change_in_elevation_5000000yrs.tif
+#   ext17_total_soil_depth_5000000yrs.tif
+pattern_prod = re.compile(rf"{base}_production_rate_(\d+)yrs")
+pattern_dz   = re.compile(rf"{base}_change_in_elevation_(\d+)yrs")
+pattern_tot  = re.compile(rf"{base}_total_soil_depth_(\d+)yrs")
+
+
+def build_point_buffer_mask(dem_path, point_shapefile, target_point_id, buffer_distance):
+    """
+    Create a True/False mask for ONLY the specified Point_ID.
+    Returns a mask aligned with DEM orientation (after np.flipud).
+    """
+    import geopandas as gpd
+    from rasterio.features import geometry_mask
+    import rasterio
+    import numpy as np
+
+    # --- Load the DEM ---
+    with rasterio.open(dem_path) as src:
+        transform = src.transform
+        out_shape = src.read(1).shape
+        dem_crs = src.crs
+
+    # --- Load points and select ONLY the one you want ---
+    gdf = gpd.read_file(point_shapefile)
+
+    field = "id"   # <--- change to whatever your field actually is
+
+    if field not in gdf.columns:
+        raise ValueError(f"Shapefile does not contain field: {field}")
+
+    pt = gdf[gdf[field] == target_point_id]
+
+    if pt.empty:
+        raise ValueError(f"Point_ID {target_point_id} not found in shapefile.")
+
+    # --- Reproject point to DEM CRS ---
+    if pt.crs != dem_crs:
+        pt = pt.to_crs(dem_crs)
+
+    # --- Buffer only this point ---
+    buf = pt.geometry.buffer(buffer_distance)
+
+    # --- Rasterize mask (True inside buffer) ---
+    mask_raw = geometry_mask(
+        buf,
+        transform=transform,
+        invert=True,
+        out_shape=out_shape
+    )
+
+    # Your TIFFs are saved with np.flipud, so flip mask too
+    mask = np.flipud(mask_raw)
+
+    return mask
+
+
+
+# Build buffer mask once
+dem_path = os.path.join(BASE_DIR, INPUT_TIFF)
+target_point_id = 1   # <--- whichever point you want
+buffer_mask = build_point_buffer_mask(
+    dem_path=dem_path,
+    point_shapefile=POINTS_SHP,
+    target_point_id=target_point_id,
+    buffer_distance=BUFFER_DISTANCE
+)
+
+
+def load_masked(path):
+    """Load a TIFF, flip vertically, apply buffer mask, convert nodata to NaN."""
+    with rasterio.open(path) as src:
+        arr = src.read(1).astype(float)
+        nodata = src.nodata
+
+    arr = np.flipud(arr)
+
+    if nodata is not None:
+        arr[arr == nodata] = np.nan
+
+    arr_masked = np.where(buffer_mask, arr, np.nan)
+    return arr_masked
+
+
+# --- Collect series: time -> mean value inside buffer ---
+mean_prod  = {}  # soil produced per step
+mean_dz    = {}  # net change in elevation per step (Δz)
+mean_depth = {}  # total soil depth
+
+files = os.listdir(TIFF_DIR)
+
+for fname in files:
+    fpath = os.path.join(TIFF_DIR, fname)
+
+    # Soil produced
+    m_p = pattern_prod.search(fname)
+    if m_p:
+        t = int(m_p.group(1))
+        arr = load_masked(fpath)
+        mean_prod[t] = np.nanmean(arr)
+        continue
+
+    # Change in elevation
+    m_z = pattern_dz.search(fname)
+    if m_z:
+        t = int(m_z.group(1))
+        arr = load_masked(fpath)
+        mean_dz[t] = np.nanmean(arr)  # negative = net erosion
+        continue
+
+    # Total soil depth
+    m_t = pattern_tot.search(fname)
+    if m_t:
+        t = int(m_t.group(1))
+        arr = load_masked(fpath)
+        mean_depth[t] = np.nanmean(arr)
+        continue
+
+# --- Build unified time axis ---
+times = sorted(set(mean_prod.keys()) | set(mean_dz.keys()) | set(mean_depth.keys()))
+
+prod_ts  = [mean_prod.get(t, np.nan)  for t in times]
+dz_ts    = [mean_dz.get(t, np.nan)    for t in times]
+depth_ts = [mean_depth.get(t, np.nan) for t in times]
+
+# Cumulative curves (depth-wise means)
+cum_prod_ts = np.nancumsum(prod_ts)   # cumulative soil produced
+cum_dz_ts   = np.nancumsum(dz_ts)     # cumulative net Δz (can go negative)
+
+# --- Single plot with all three ---
+plt.figure(figsize=(7, 5))
+plt.gca().set_facecolor("#f0f0f0")   # light gray background
+plt.xlim(0, 2500)
+plt.ylim(0, 1.2)
+plt.plot(times, cum_prod_ts, marker='o', linewidth=1.8, label="Cumulative soil produced (m)")
+plt.plot(times, cum_dz_ts,   marker='o', linewidth=1.8, label="Cumulative net Δelevation (m)")
+plt.plot(times, depth_ts,    marker='o', linewidth=1.8, label="Mean total soil depth (m)")
+
+# plt.axhline(0, linestyle='--', linewidth=1.0)
+# plt.yscale("log")   # <---- LOG SCALE HERE
+#plt.xlabel("Time (yrs)")
+#plt.ylabel("Depth / Elevation (m)\n(mean inside buffer)")
+#plt.title(f"Soil Budget & Surface Change Through Time\nBuffered Region – {base}")
+plt.grid(True, linestyle='--', alpha=0.5)
+#plt.legend()
+plt.tight_layout()
+
+out_png = os.path.join(OUT_DIRpng, f"{base}_cum_prod_dz_totaldepth_BUFFERED.png")
+plt.savefig(out_png, dpi=450)
+plt.close()
+
+print("Saved combined soil budget plot:", out_png)
+
+#%%
+#%%  COMBINED PLOT + TRANSPORT-ONLY INFILLING RATE (EXCLUDES PRODUCTION)
+
+import os
+import re
+import numpy as np
+import rasterio
+import matplotlib.pyplot as plt
+import geopandas as gpd
+from rasterio.features import geometry_mask
+
+TIFF_DIR = OUT_DIRtiff
+base = os.path.splitext(INPUT_TIFF)[0]
+
+# File patterns:
+pattern_prod = re.compile(rf"{base}_production_rate_(\d+)yrs")          # saved as increment (m) b/c you multiplied by dt
+pattern_dz   = re.compile(rf"{base}_change_in_elevation_(\d+)yrs")      # Δz per step (m)
+pattern_tot  = re.compile(rf"{base}_total_soil_depth_(\d+)yrs")         # total h (m)
+pattern_dh   = re.compile(rf"{base}_change_in_soil_depth_(\d+)yrs")     # Δh per step (m)
+
+def build_point_buffer_mask(dem_path, point_shapefile, target_point_id, buffer_distance):
+    """
+    Create a True/False mask for ONLY the specified point.
+    Returns a mask aligned with arrays after np.flipud().
+    """
+    with rasterio.open(dem_path) as src:
+        transform = src.transform
+        out_shape = src.read(1).shape
+        dem_crs = src.crs
+
+    gdf = gpd.read_file(point_shapefile)
+
+    field = "id"  # <-- CHANGE IF NEEDED
+    if field not in gdf.columns:
+        raise ValueError(f"Shapefile does not contain field: {field}. "
+                         f"Available fields: {list(gdf.columns)}")
+
+    pt = gdf[gdf[field] == target_point_id]
+    if pt.empty:
+        raise ValueError(f"{field}={target_point_id} not found in shapefile.")
+
+    if pt.crs != dem_crs:
+        pt = pt.to_crs(dem_crs)
+
+    buf = pt.geometry.buffer(buffer_distance)
+
+    mask_raw = geometry_mask(
+        buf,
+        transform=transform,
+        invert=True,
+        out_shape=out_shape
+    )
+
+    # TIFFs were saved with np.flipud(data), so flip mask to match loaded arrays
+    return np.flipud(mask_raw)
+
+# --- Build mask once ---
+dem_path = os.path.join(BASE_DIR, INPUT_TIFF)
+target_point_id = 1   # <-- choose your point id here
+buffer_mask = build_point_buffer_mask(
+    dem_path=dem_path,
+    point_shapefile=POINTS_SHP,
+    target_point_id=target_point_id,
+    buffer_distance=BUFFER_DISTANCE
+)
+
+def load_masked(path):
+    """Load a TIFF, flip vertically, apply buffer mask, convert nodata to NaN."""
+    with rasterio.open(path) as src:
+        arr = src.read(1).astype(float)
+        nodata = src.nodata
+
+    arr = np.flipud(arr)
+
+    if nodata is not None:
+        arr[arr == nodata] = np.nan
+
+    return np.where(buffer_mask, arr, np.nan)
+
+# --- Collect series: time -> mean value inside buffer ---
+mean_prod  = {}  # Δh_prod per step (m) (your production_rate already includes *dt)
+mean_dz    = {}  # Δz per step (m)
+mean_depth = {}  # total soil depth h (m)
+mean_dh    = {}  # Δh per step (m) (net soil thickness change)
+
+for fname in os.listdir(TIFF_DIR):
+    fpath = os.path.join(TIFF_DIR, fname)
+
+    m = pattern_prod.search(fname)
+    if m:
+        t = int(m.group(1))
+        mean_prod[t] = np.nanmean(load_masked(fpath))
+        continue
+
+    m = pattern_dz.search(fname)
+    if m:
+        t = int(m.group(1))
+        mean_dz[t] = np.nanmean(load_masked(fpath))
+        continue
+
+    m = pattern_tot.search(fname)
+    if m:
+        t = int(m.group(1))
+        mean_depth[t] = np.nanmean(load_masked(fpath))
+        continue
+
+    m = pattern_dh.search(fname)
+    if m:
+        t = int(m.group(1))
+        mean_dh[t] = np.nanmean(load_masked(fpath))
+        continue
+
+# --- Unified time axis (only keep times where we have what's needed) ---
+times = sorted(set(mean_prod.keys()) | set(mean_dz.keys()) | set(mean_depth.keys()) | set(mean_dh.keys()))
+
+prod_ts  = np.array([mean_prod.get(t, np.nan)  for t in times], dtype=float)  # m per step
+dz_ts    = np.array([mean_dz.get(t, np.nan)    for t in times], dtype=float)  # m per step
+depth_ts = np.array([mean_depth.get(t, np.nan) for t in times], dtype=float)  # m
+dh_ts    = np.array([mean_dh.get(t, np.nan)    for t in times], dtype=float)  # m per step
+
+# --- Cumulative curves (depth-wise means; units = m) ---
+cum_prod_ts = np.nancumsum(prod_ts)
+cum_dz_ts   = np.nancumsum(dz_ts)
+
+# --- TRANSPORT-ONLY: exclude production ---
+# Δh_transport per step (m) = Δh - Δh_prod
+transport_dh_ts = dh_ts - prod_ts
+
+# Net transport rate (m/yr): can be +/- (infill or evacuation)
+dt_model = dt  # dt from your simulation (50 yrs)
+transport_net_rate_ts = transport_dh_ts / dt_model
+
+# Transport-only INFILLING rate (m/yr): deposition only (positive)
+transport_infill_rate_ts = np.maximum(0.0, transport_dh_ts) / dt_model
+
+# Optional: cumulative transport-only infill (m) (deposition only)
+cum_transport_infill_ts = np.nancumsum(np.maximum(0.0, transport_dh_ts))
+
+# --- Start curves at t=0 with 0 ---
+times_arr = np.array(times, dtype=float)
+
+times_plot      = np.insert(times_arr, 0, 0.0)
+cum_prod_plot   = np.insert(cum_prod_ts, 0, 0.0)
+cum_dz_plot     = np.insert(cum_dz_ts,   0, 0.0)
+depth_plot      = np.insert(depth_ts,    0, 0.0)  # you said hollow starts at 0
+
+# For rate plots, it’s also nice to start at 0
+transport_net_rate_plot    = np.insert(transport_net_rate_ts,    0, 0.0)
+transport_infill_rate_plot = np.insert(transport_infill_rate_ts, 0, 0.0)
+cum_transport_infill_plot  = np.insert(cum_transport_infill_ts,  0, 0.0)
+
+# -------------------------
+# Plot 1: Your original combined plot (cumulative prod, cumulative dz, total depth)
+# -------------------------
+plt.figure(figsize=(7, 5))
+ax = plt.gca()
+ax.set_facecolor("#f0f0f0")
+
+ax.set_xlim(0, 2500)
+ax.set_ylim(0, 1.2)
+
+ax.plot(times_plot, cum_prod_plot, marker='o', lw=1.8, label="Cumulative soil produced (m)")
+ax.plot(times_plot, cum_dz_plot,   marker='o', lw=1.8, label="Cumulative net Δelevation (m)")
+ax.plot(times_plot, depth_plot,    marker='o', lw=1.8, label="Mean total soil depth (m)")
+
+ax.grid(True, linestyle='--', alpha=0.5)
+ax.legend()
+plt.tight_layout()
+
+out_png = os.path.join(OUT_DIRpng, f"{base}_cum_prod_dz_totaldepth_Point{target_point_id}.png")
+plt.savefig(out_png, dpi=450)
+plt.close()
+print("Saved combined soil budget plot:", out_png)
+
+# -------------------------
+# Plot 2: Transport-only infilling rate (m/yr) (what you asked for)
+# -------------------------
+plt.figure(figsize=(7, 4.5))
+ax = plt.gca()
+ax.set_facecolor("#f0f0f0")
+
+ax.set_xlim(0, 2500)
+
+ax.plot(times_plot, transport_infill_rate_plot, marker='o', lw=1.8,
+        label="Transport-only infilling rate (m/yr)")
+
+ax.axhline(0, color='k', lw=1, ls='--')
+ax.set_xlabel("Time (yrs)")
+ax.set_ylabel("Rate (m/yr)\n(mean inside hollow buffer)")
+ax.set_title(f"Transport-only Infilling Rate (excludes production)\nPoint {target_point_id} – {base}")
+ax.grid(True, linestyle='--', alpha=0.5)
+ax.legend()
+plt.tight_layout()
+
+out_png2 = os.path.join(OUT_DIRpng, f"{base}_transport_only_infilling_rate_Point{target_point_id}.png")
+plt.savefig(out_png2, dpi=450)
+plt.close()
+print("Saved transport-only infilling rate plot:", out_png2)
+
+# -------------------------
+# Optional Plot 3: net transport rate (can be +/-) + cumulative transport-only infill
+# -------------------------
+plt.figure(figsize=(7, 4.5))
+ax = plt.gca()
+ax.set_facecolor("#f0f0f0")
+ax.set_xlim(0, 2500)
+
+ax.plot(times_plot, transport_net_rate_plot, marker='o', lw=1.8,
+        label="Net transport rate (m/yr; +/-)")
+ax.axhline(0, color='k', lw=1, ls='--')
+
+ax.set_xlabel("Time (yrs)")
+ax.set_ylabel("Rate (m/yr)\n(mean inside hollow buffer)")
+ax.set_title(f"Net Transport Rate (excludes production)\nPoint {target_point_id} – {base}")
+ax.grid(True, linestyle='--', alpha=0.5)
+ax.legend()
+plt.tight_layout()
+
+out_png3 = os.path.join(OUT_DIRpng, f"{base}_transport_net_rate_Point{target_point_id}.png")
+plt.savefig(out_png3, dpi=450)
+plt.close()
+print("Saved net transport rate plot:", out_png3)
+
+plt.figure(figsize=(7, 4.5))
+ax = plt.gca()
+ax.set_facecolor("#f0f0f0")
+ax.set_xlim(0, 2500)
+
+ax.plot(times_plot, cum_transport_infill_plot, marker='o', lw=1.8,
+        label="Cumulative transport-only infill (m)")
+ax.set_xlabel("Time (yrs)")
+ax.set_ylabel("Cumulative infill (m)\n(mean inside hollow buffer)")
+ax.set_title(f"Cumulative Transport-only Infilling (excludes production)\nPoint {target_point_id} – {base}")
+ax.grid(True, linestyle='--', alpha=0.5)
+ax.legend()
+plt.tight_layout()
+
+out_png4 = os.path.join(OUT_DIRpng, f"{base}_cum_transport_only_infill_Point{target_point_id}.png")
+plt.savefig(out_png4, dpi=450)
+plt.close()
+print("Saved cumulative transport-only infill plot:", out_png4)

@@ -64,9 +64,9 @@ def crit_depth(a):
     return result
 
 # Find critical depth for different cohesions in the OCR
-hc_if = crit_depth(6800) #critical height for 6800 Pa - Industiral Forest
-hc_ccf = crit_depth(2500) #critical height for 2500 Pa - Clear Cut/Fire
-hc_dog = crit_depth(25600) #critical height for 25600 Pa - Dense Old Growth
+hc_if = crit_depth(1920) #critical height for 6800 Pa - Industiral Forest
+hc_ccf = crit_depth(760) #critical height for 2500 Pa - Clear Cut/Fire
+hc_dog = crit_depth(3600) #critical height for 25600 Pa - Dense Old Growth
 
 #%%
 # Define a function for RI given hc
@@ -92,9 +92,9 @@ plt.title("Cohesion Comparison", fontsize = 16)
 plt.yscale('log')
 
 # Plot lines
-sns.lineplot(x=hollow_ang, y=ri_dog, label='C = 25.6 kPa - Dense Old Growth')
-sns.lineplot(x=hollow_ang, y=ri_if, label='C = 6.8 kPa - Industrial Forest')
-sns.lineplot(x=hollow_ang, y=ri_ccf, label='C = 2.5 kPa - Clear Cut/Fire')
+sns.lineplot(x=hollow_ang, y=ri_dog, label='C = 3.6 kPa - Dense Old Growth')
+sns.lineplot(x=hollow_ang, y=ri_if, label='C = 1.9 kPa - Industrial Forest')
+sns.lineplot(x=hollow_ang, y=ri_ccf, label='C = 0.76 kPa - Clear Cut/Fire')
 
 # Add labels and legend
 plt.legend()
@@ -103,6 +103,38 @@ plt.ylabel('Recurrence Interval (yrs)', fontsize = 14)
 
 # Show plot
 plt.show()
+
+#%% MATPLOTLIB version
+import matplotlib.pyplot as plt
+
+plt.figure(figsize=(6,4))
+
+ax = plt.gca()                       # get current axes
+ax.set_facecolor("#f0f0f0")          # light gray background
+
+#plt.title("Cohesion Comparison", fontsize=16)
+
+# Log-scale on y-axis
+plt.yscale('log')
+
+# Plot each line
+plt.plot(hollow_ang, ri_dog, label='C = 3.6 kPa - Dense Old Growth', linewidth=2)
+plt.plot(hollow_ang, ri_if, label='C = 1.9 kPa - Industrial Forest', linewidth=2)
+plt.plot(hollow_ang, ri_ccf, label='C = 0.76 kPa - Clear Cut/Fire', linewidth=2)
+
+# Axis labels
+# plt.xlabel(r'$\theta_H$', fontsize=14)
+# plt.ylabel('Recurrence Interval (yrs)', fontsize=14)
+
+# Legend
+#plt.legend()
+
+# Grid (optional—similar to seaborn darkgrid)
+plt.grid(True, which='both', linestyle='--', alpha=0.6)
+
+plt.tight_layout()
+plt.show()
+
 
 #%% 
 ## RI comparison for Nonlinear K and Linear K over range of hollow slopes #####
